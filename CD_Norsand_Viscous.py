@@ -19,7 +19,7 @@ eqp_tot = 100.0  # [%] 'total applied plastic shear strain'
 lst = int(1e5)  # [-] 'loadsteps'
 
 # Collisional contribution parameters
-Delta_Phi = -1.0
+Delta_Phi = 1.0
 M_tc_c = 1.8
 
 # Derived parameters
@@ -82,21 +82,21 @@ for i, eqp_inc in enumerate(eqp_inc_history):
     # Apply consistency condition to calculate stress ratio increment (drained)
     eta_inc = (pim_inc / pim[i]) / (1 / M_tc + 1 / (1e5 - q[i] / p[i]))  # Note: 3.0 is used instead of 3 in the denominator
     # Calculate mean effective stress
-    p_inc = p_total[i] * eta_inc / (1e5 - q_total[i] / p_total[i])
-    p_total[i + 1] = p_total[i] + p_inc
-    p[i + 1] = p[i] + p_inc - d_p_c[i]
+    p_total_inc = p_total[i] * eta_inc / (1e5 - q_total[i] / p_total[i])
+    p_total[i + 1] = p_total[i] + p_total_inc
+    p[i + 1] = p[i] + p_total_inc - d_p_c[i]
 
     # Calculate new stress ratio and shear stress
     eta = M_tc * (1 + np.log(pim[i + 1] / p[i + 1]))
     q[i + 1] = eta * p[i + 1]
 
     # Calculate collisional stress
-    d_eqp_inc = eqp_inc - eqp_inc_history[i-1]
+    d_eqp_inc = eqp_inc - eqp_inc_history[i-1] if i > 0 else 0
     if d_eqp_inc != 0:
         Phi = 1.0/ (1.0 + e[i + 1])    
         sign = np.sign(d_eqp_inc * eq[i])
-        evp_inc += Phi_0 / Phi**2 * Delta_Phi * d_eqp_inc
-        d_p_c[i + 1] = - p_total[i] / (lambda_val*Phi**2) * Delta_Phi * d_eqp_inc
+        evp_inc += - Phi_0 / Phi**2 * Delta_Phi * d_eqp_inc
+        d_p_c[i + 1] = p_total[i] / (lambda_val*Phi**2) * Delta_Phi * d_eqp_inc
         p_c[i + 1] = p_c[i] + d_p_c[i + 1]
         q_c[i + 1] = q_c[i] + d_p_c[i + 1] * M_tc_c
     else:
@@ -108,7 +108,7 @@ for i, eqp_inc in enumerate(eqp_inc_history):
     q_total[i + 1] = q[i + 1] + q_c[i + 1]
         
     # Update volumetric and Plastic shear strain increments
-    eve_inc = p_inc / K
+    eve_inc = (p_total_inc - d_p_c[i]) / K
     eqe_inc = (q[i + 1] - q[i]) / (3 * mu)
     ev[i + 1] = ev[i] + eve_inc + evp_inc
     eq[i + 1] = eq[i] + eqe_inc + eqp_inc

@@ -13,13 +13,13 @@ nu = 0.20  # [0.1 0.3] 'Poissons ratio'
 
 # CD input
 p0 = 100.0  # [kPa] 'inital pressure'
-e0 = 0.7  # [-] 'init void ratio'
+e0 = 0.68  # [-] 'init void ratio'
 Phi_0 = 1.0 / (1.0 + e0)
 eqp_tot = 100.0  # [%] 'total applied plastic deviatoric strain'
 lst = int(1e5)  # [-] 'loadsteps'
 
 # Collisional contribution parameters
-Delta_Phi = -1.0
+Delta_Phi = 1.0
 M_tc_c = 1.8
 
 # Derived parameters
@@ -79,12 +79,12 @@ for i, eqp_inc in enumerate(eqp_inc_history):
     K = mu * (2 * (1 + nu)) / (3 * (1 - 2 * nu))
 
     # Calculate collisional stress
-    d_eqp_inc = eqp_inc - eqp_inc_history[i-1]
+    d_eqp_inc = eqp_inc - eqp_inc_history[i-1] if i > 0 else 0
     if d_eqp_inc != 0:
         Phi = 1.0/ (1.0 + e[i + 1])
         sign = np.sign(d_eqp_inc * eq[i])
-        evp_inc += Phi_0 / Phi**2 * Delta_Phi * d_eqp_inc
-        d_p_c[i + 1] = - p_total[i] / (lambda_val*Phi**2) * Delta_Phi * d_eqp_inc
+        evp_inc += - Phi_0 / Phi**2 * Delta_Phi * d_eqp_inc
+        d_p_c[i + 1] = p_total[i] / (lambda_val*Phi**2) * Delta_Phi * d_eqp_inc
         p_c[i + 1] = p_c[i] + d_p_c[i + 1]
         q_c[i + 1] = q_c[i] + d_p_c[i + 1] * M_tc_c
     else:
@@ -93,12 +93,12 @@ for i, eqp_inc in enumerate(eqp_inc_history):
 
     # Calculate elastic strain increment % mean effective stress increment (undrained)
     eve_inc = -evp_inc
-    p_inc = K * eve_inc
+    p_total_inc = K * eve_inc
 
     # Apply consistency condition to calculate mean effective stress on the yield surface
-    Cc = (pim[i] / p[i]) * (1 + pim_inc / pim[i] - p_inc / p[i])
+    Cc = (pim[i] / p[i]) * (1 + pim_inc / pim[i] - (p_total_inc - d_p_c[i]) / p[i])
     p_total[i + 1] = pim[i + 1] / Cc
-    p[i + 1] = p[i] + p_inc - d_p_c[i]
+    p[i + 1] = p[i] + p_total_inc - d_p_c[i]
 
     # Calculate the stress ratio & shear stress
     eta = Mim * (1 - np.log(p[i + 1] / pim[i + 1]))
