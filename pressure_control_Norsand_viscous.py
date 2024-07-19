@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 # Norsand critical state parameters
 gamma = 0.75  # [0.9 - 1.4] 'altitude of CSL @ 1kPa'
 lambda_val = 0.015  # [0.01 - 0.07] 'slope CSL defined on natural log'
-M = 1.26  # [1.2 - 1.5] 'critical state friction ratio triaxial compression'
+M = 1.26  # [1.2 - 1.5] 'critical state friction ratio'
 N = 0.4  # [0.2 - 0.5] 'volumetric coupling coefficient'
 H = 200.0  # [25 - 500] 'plastic hardening modulus for loading'
 XiM = 8  # [2 - 5] 'relates maximum dilatancy to state variable (psi)'
