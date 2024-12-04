@@ -15,7 +15,7 @@ p0 = 150.0  # 'Initial confining pressure [kPa]'
 V = N - (lambda_val * np.log(pc_0)) + (kappa * np.log(pc_0 / p0))  # Specific Volume
 void_ratio_0 = V - 1  # Initial void ratio
 Phi_0 = 1.0 / (1.0 + void_ratio_0)  # Initial solid volume fraction
-deformation_mode = 'drained'
+deformation_mode = 'undrained'
 
 # Maximum shear strain and number of load steps for the quasi-static stage
 eqp_tot = 100.0  # [%] 'total plastic shear strain'
@@ -201,54 +201,130 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
 
 # Display results
 plt.figure('Pressure controlled simple shear')
+
+# Full text long labels
+ctime = 'Time [s]'
+cmu = 'Stress ratio q/p [-]'
+cp = 'Volumetric stress p [kPa]'
+cq = 'Deviatoric stress q [kPa]'
+cev = 'Volumetric strain [-]'
+cppc = 'pre-consolidation pressure [kPa]'
+cpcoll = 'coll. volumetric stress / p [-]'
+cvr = 'Void ratio [-]'
+
+# Symbolic short labels
+ctime = 't [s]'
+cmu = 'q/p [-]'
+cp = 'p [kPa]'
+cq = 'q [kPa]'
+cev = 'eps [-]'
+cppc = 'pc(t) [kPa]'
+cpcoll = 'p_c/p [-]'
+cvr = 'e [-]'
+
+# pressure vs. time
 plt.subplot(2, 4, 1)
-plt.plot(np.arange(load_length) * dt, p, '-b', label='Quasi-static')
-plt.plot(np.arange(load_length) * dt, p_total, '-g', label='Total')
-plt.xlabel('Time [s]')
-plt.ylabel('Volumetric stress [kPa]')
+plt.plot(np.arange(load_length) * dt, p, '-b', label='qstat')
+plt.plot(np.arange(load_length) * dt, p_total, '-g', label='tot')
+# begin and endpoints
+plt.plot(0 * dt, p[0], 'bx', label='')
+plt.plot(0 * dt, p_total[0], 'g+', label='')
+plt.plot(load_length * dt, p[-1], 'bo', label='')
+plt.plot(load_length * dt, p_total[-1], 'g.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cp)
 plt.legend()
 
+# deviatoric stress (q) vs. time
 plt.subplot(2, 4, 2)
-plt.plot(np.arange(load_length) * dt, q, '-b', label='Quasi-static')
-plt.plot(np.arange(load_length) * dt, q_total, '-g', label='Total')
-plt.xlabel('Time [s]')
-plt.ylabel('Deviatoric stress [kPa]')
+plt.plot(np.arange(load_length) * dt, q, '-b', label='qstat')
+plt.plot(np.arange(load_length) * dt, q_total, '-g', label='tot')
+# begin and endpoints
+plt.plot(0 * dt, q[0], 'bx', label='')
+plt.plot(0 * dt, q_total[0], 'g+', label='')
+plt.plot(load_length * dt, q[-1], 'bo', label='')
+plt.plot(load_length * dt, q_total[-1], 'g.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cq)
 plt.legend()
 
+# volumetric and deviatoric strain vs. time
 plt.subplot(2, 4, 3)
-plt.plot(np.arange(load_length) * dt, ev, '-b')
-plt.xlabel('Time [s]')
-plt.ylabel('Volumetric strain [-]')
+plt.plot(np.arange(load_length) * dt, eqp_inc_history, '-b', label='dev')
+plt.plot(np.arange(load_length) * dt, ev, '--g', label='v')
+# begin and endpoints
+plt.plot(0 * dt, eqp_inc_history[0], 'bx', label='')
+plt.plot(0 * dt, ev[0], 'gx', label='')
+plt.plot(load_length * dt, eqp_inc_history[-1], 'bo', label='')
+plt.plot(load_length * dt, ev[-1], 'g.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cev)
+plt.legend()
 
+# pre-consolidation pressure vs. time
 plt.subplot(2, 4, 4)
 plt.plot(np.arange(load_length) * dt, pc_history, '-b')
-plt.xlabel('Time [s]')
-plt.ylabel('Pre-consolidation pressure [kPa]')
+# begin and endpoints
+plt.plot(0 * dt, pc_history[0], 'bx', label='')
+plt.plot(load_length * dt, pc_history[-1], 'b.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cppc)
 
+# collisional stress (iso) vs. time
 plt.subplot(2, 4, 5)
-plt.plot(np.arange(load_length) * dt, p_c, '-b')
-plt.xlabel('Time [s]')
-plt.ylabel('Collisional volumetric stress [kPa]')
+plt.plot(np.arange(load_length) * dt, p_c / p, '-b')
+# begin and endpoints
+plt.plot(0 * dt, p_c[0] / p[0], 'bx', label='')
+plt.plot(load_length * dt, p_c[-1] / p[-1], 'b.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cpcoll)
 
+# deviatoric stress vs. p
 plt.subplot(2, 4, 6)
-plt.plot(p, q, '-*b', markevery=100, label='Quasi-static')
-plt.plot(p_total, q_total, '-g', label='Total')
+imark = 500
+plt.plot(p, q, '-+b', markevery=imark, label='qstat')
+plt.plot(p_total, q_total, '-g', label='tot')
 plt.plot([0, np.max(p)], [0, M * np.max(p)], '-+r', label='CSL')
-plt.xlabel('Volumetric stress [kPa]')
-plt.ylabel('Deviatoric stress [kPa]')
+# begin and endpoints
+plt.plot(p[0], q[0], 'bx', label='')
+plt.plot(p[0], q_total[0], 'g+', label='')
+# plt.plot(p[0], 0, 'r*', label='')
+plt.plot(p_total[-1], q[-1], 'b.', label='')
+plt.plot(p_total[-1], q_total[-1], 'g.', label='')
+# plt.plot(p_total[-1], M * np.max(p), 'rs', label='')
+# labels
+plt.xlabel(cp)
+plt.ylabel(cq)
 plt.legend()
 
+# void ratios vs. p
 plt.subplot(2, 4, 7)
-plt.plot(p, void_ratio_q, '-b', label='Quasi-static')
-plt.plot(p_total, void_ratio_total, '-g', label='Total')
-plt.xlabel('Volumetric stress [kPa]')
-plt.ylabel('Void ratio [-]')
-plt.legend()
+plt.plot(p, void_ratio_q, '-b', label='qstat')
+plt.plot(p_total, void_ratio_total, '-g', label='tot')
+# begin and endpoints
+plt.plot(p[0], void_ratio_q[0], 'bx', label='')
+plt.plot(p_total[0], void_ratio_total[0], 'g+', label='')
+plt.plot(p[-1], void_ratio_q[-1], 'b.', label='')
+plt.plot(p_total[-1], void_ratio_total[-1], 'g.', label='')
+# labels
+plt.xlabel(cp)
+plt.ylabel(cvr)
+# plt.legend()
 
+# bulk friction vs. time
 plt.subplot(2, 4, 8)
 plt.plot(np.arange(load_length) * dt, q_total / p_total, 'b')
-plt.xlabel('Time [s]')
-plt.ylabel('Stress ratio q/p [-]')
+# begin and endpoints
+plt.plot(0 * dt, q_total[0] / p_total[0], 'b+', label='')
+plt.plot(load_length * dt, q_total[-1] / p_total[-1], 'b.', label='')
+# labels
+plt.xlabel(ctime)
+plt.ylabel(cmu)
 
 mng = plt.get_current_fig_manager()
 mng.full_screen_toggle()
