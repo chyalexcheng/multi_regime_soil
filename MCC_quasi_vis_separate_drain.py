@@ -19,7 +19,7 @@ p0 = 150.0  # 'Initial confining pressure [kPa]'
 V = N - (lambda_val * np.log(pc_0)) + (kappa * np.log(pc_0 / p0))  # Specific Volume
 void_ratio_0 = V - 1  # Initial void ratio
 Phi_0 = 1.0 / (1.0 + void_ratio_0)  # Initial solid volume fraction
-deformation_mode = 'undrained'
+deformation_mode = 'drained'
 
 # Maximum shear strain and number of load steps for the quasi-static stage
 eqp_tot = 100.0  # [%] 'total plastic shear strain'
@@ -242,14 +242,14 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
 plt.figure('Pressure controlled simple shear')
 
 # Full text long labels
-ctime = 'Time [s]'
-cmu = 'Stress ratio q/p [-]'
-cp = 'Volumetric stress p [kPa]'
-cq = 'Deviatoric stress q [kPa]'
-cev = 'Volumetric strain [-]'
-cppc = 'pre-consolidation pressure [kPa]'
-cpcoll = 'coll. volumetric stress / p [-]'
-cvr = 'Void ratio [-]'
+time_label = r'Time ($t$) [s]'
+mu_label = r'Ratio of deviatoric stress to pressure $q/p$ [-]'
+pressure_label = r'Pressure $p$ [kPa]'
+dev_stress_label = r'Deviatoric stress $q$ [kPa]'
+ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
+preconsolidation_p_label = 'Pre-consolidation stress [kPa]'
+p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
+e_label = r'Void ratio $e$ [-]'
 
 # Symbolic short labels
 ctime = 't [s]'
@@ -376,103 +376,116 @@ plt.ylabel(cmu)
 
 # Individual production plots
 
+# Set figure size for half-width of A4
+a4_half_width = 6  # in inches
+fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
+fig_height = a4_half_width / fig_aspect_ratio
+figsize = (a4_half_width, fig_height)
+
 # Pressure vs. Time
-plt.figure()
+plt.figure(figsize=figsize)
 plt.plot(np.arange(load_length) * dt, p, '-b', label=r"Quasi-static pressure ($p^{\mathrm{q}}$)")
-plt.plot(np.arange(load_length) * dt, p_total, '-g', label=r"Total pressure ($p)$)")
-plt.plot(0 * dt, p[0], 'bx', label='')
-plt.plot(0 * dt, p_total[0], 'g+', label='')
-plt.plot(load_length * dt, p[-1], 'bo', label='')
-plt.plot(load_length * dt, p_total[-1], 'g.', label='')
-plt.xlabel(ctime)
-plt.ylabel(cp)
+plt.plot(np.arange(load_length) * dt, p_total, '-g', label=r"Total pressure ($p$)")
+plt.plot(0 * dt, p[0], 'b.', label='')
+plt.plot(0 * dt, p_total[0], 'g.', label='')
+plt.plot(load_length * dt, p[-1], 'bx', label='')
+plt.plot(load_length * dt, p_total[-1], 'gx', label='')
+plt.xlabel(time_label)
+plt.ylabel(pressure_label)
 plt.legend()
-plt.title(r"Pressure vs. Time")
+plt.savefig(f"p_and_p_c_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Deviatoric Stress (q) vs. Time
-plt.figure()
-plt.plot(np.arange(load_length) * dt, q, '-b', label='qstat')
-plt.plot(np.arange(load_length) * dt, q_total, '-g', label='tot')
-plt.plot(0 * dt, q[0], 'bx', label='')
-plt.plot(0 * dt, q_total[0], 'g+', label='')
-plt.plot(load_length * dt, q[-1], 'bo', label='')
-plt.plot(load_length * dt, q_total[-1], 'g.', label='')
-plt.xlabel(ctime)
-plt.ylabel(cq)
+plt.figure(figsize=figsize)
+plt.plot(np.arange(load_length) * dt, q, '-b', label=r"Quasi-static deviatoric stress ($q^{\mathrm{q}}$)")
+plt.plot(np.arange(load_length) * dt, q_total, '-g', label=r"Total deviatoric stress ($p$)")
+plt.plot(0 * dt, q[0], 'b.', label='')
+plt.plot(0 * dt, q_total[0], 'g.', label='')
+plt.plot(load_length * dt, q[-1], 'bx', label='')
+plt.plot(load_length * dt, q_total[-1], 'gx', label='')
+plt.xlabel(time_label)
+plt.ylabel(dev_stress_label)
 plt.legend()
-plt.title(r"Deviatoric Stress vs. Time")
+plt.savefig(f"q_and_q_c_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Volumetric and Deviatoric Strain vs. Time
-plt.figure()
+plt.figure(figsize=figsize)
 ax1 = plt.gca()
-ax1.plot(np.arange(load_length) * dt, eq, '-b', label='dev')
-ax1.plot(0 * dt, eq[0], 'bx', label='')
-ax1.plot(load_length * dt, eq[-1], 'bo', label='')
-ax1.set_xlabel(ctime)
-ax1.set_ylabel(r"Deviatoric Strain", color='b')
+ax1.plot(np.arange(load_length) * dt, eq, '-b', label='')
+ax1.plot(0 * dt, eq[0], 'b.', label='')
+ax1.plot(load_length * dt, eq[-1], 'bx', label='')
+ax1.set_xlabel(time_label)
+ax1.set_ylabel(r'Deviatoric strain ($\gamma$)', color='b')
 ax1.tick_params(axis='y', labelcolor='b')
 
 ax2 = ax1.twinx()
-ax2.plot(np.arange(load_length) * dt, ev, '--g', label='v')
-ax2.plot(0 * dt, ev[0], 'gx', label='')
-ax2.plot(load_length * dt, ev[-1], 'g.', label='')
-ax2.set_ylabel(r"Volumetric Strain", color='g')
+ax2.plot(np.arange(load_length) * dt, ev, '-g')
+ax2.plot(0 * dt, ev[0], 'g.', label='')
+ax2.plot(load_length * dt, ev[-1], 'gx', label='')
+ax2.set_ylabel(r"Volumetric strain ($\varepsilon_v$)", color='g')
 ax2.tick_params(axis='y', labelcolor='g')
-ax1.legend(loc="upper left")
-ax2.legend(loc="upper right")
-plt.title(r"Volumetric and Deviatoric Strain vs. Time")
+plt.savefig(f"e_v_and_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Pre-consolidation Pressure vs. Time
-plt.figure()
+plt.figure(figsize=figsize)
 plt.plot(np.arange(load_length) * dt, pc_history, '-b')
-plt.plot(0 * dt, pc_history[0], 'bx', label='')
-plt.plot(load_length * dt, pc_history[-1], 'b.', label='')
-plt.xlabel(ctime)
-plt.ylabel(cppc)
-plt.title(r"Pre-consolidation Pressure vs. Time")
+plt.plot(0 * dt, pc_history[0], 'b.', label='')
+plt.plot(load_length * dt, pc_history[-1], 'bx', label='')
+plt.xlabel(time_label)
+plt.ylabel(preconsolidation_p_label)
+plt.savefig(f"preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
-# Collisional Stress (Iso) vs. Time
-plt.figure()
-plt.plot(np.arange(load_length) * dt, p_c / p, '-b')
-plt.plot(0 * dt, p_c[0] / p[0], 'bx', label='')
-plt.plot(load_length * dt, p_c[-1] / p[-1], 'b.', label='')
-plt.xlabel(ctime)
-plt.ylabel(cpcoll)
-plt.title(r"Collisional Stress vs. Time")
+# Ratio between collisional and quasistatic stress vs. Time
+plt.figure(figsize=figsize)
+plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-b', label=r'Pressures ($p^{\mathrm{c}}/p^{\mathrm{q}}$)')
+plt.plot(0 * dt, p_c[1] / p[1], 'b.', label='')
+plt.plot(load_length * dt, p_c[-1] / p[-1], 'bx', label='')
+plt.plot(np.arange(load_length-1) * dt, q_c[1:] / q[1:], '-g', label=r'Deviatoric stresses ($q^{\mathrm{c}}/q^{\mathrm{q}}$)')
+plt.plot(0 * dt, q_c[1] / q[1], 'g.', label='')
+plt.plot(load_length * dt, q_c[-1] / q[-1], 'gx', label='')
+plt.xlabel(time_label)
+plt.ylabel(p_ratio_label)
+plt.legend()
+plt.savefig(f"p_c_over_p_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Deviatoric Stress vs. Pressure
-plt.figure()
-plt.plot(p, q, '-+b', markevery=500, label='qstat')
-plt.plot(p_total, q_total, '-g', label='tot')
-plt.plot([0, np.max(p)], [0, M * np.max(p)], '-+r', label='CSL')
-plt.plot(p[0], q[0], 'bx', label='')
-plt.plot(p[-1], q[-1], 'b.', label='')
-plt.plot(p_total[0], q_total[0], 'g+', label='')
-plt.plot(p_total[-1], q_total[-1], 'g.', label='')
-plt.xlabel(cp)
-plt.ylabel(cq)
+plt.figure(figsize=figsize)
+plt.plot(p, q, '-+b', markevery=500, label=r"Quasi-static stress")
+plt.plot(p_total, q_total, '-g', label=r"Total stress")
+plt.plot([0, np.max(p)], [0, M * np.max(p)], '-+r', label='Critical state line')
+plt.plot(p[0], q[0], 'b.', label='')
+plt.plot(p[-1], q[-1], 'bx', label='')
+plt.plot(p_total[0], q_total[0], 'g.', label='')
+plt.plot(p_total[-1], q_total[-1], 'gx', label='')
+plt.xlabel(pressure_label)
+plt.ylabel(dev_stress_label)
 plt.legend()
-plt.title(r"Deviatoric Stress vs. Pressure")
+plt.savefig(f"p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Void Ratios vs. Pressure
-plt.figure()
-plt.plot(p, void_ratio_q, '-b', label='qstat')
-plt.plot(p_total, void_ratio_total, '-g', label='tot')
-plt.plot(p[0], void_ratio_q[0], 'bx', label='')
-plt.plot(p_total[0], void_ratio_total[0], 'g+', label='')
-plt.plot(p[-1], void_ratio_q[-1], 'b.', label='')
-plt.plot(p_total[-1], void_ratio_total[-1], 'g.', label='')
-plt.xlabel(cp)
-plt.ylabel(cvr)
-plt.title(r"Void Ratios vs. Pressure")
+plt.figure(figsize=figsize)
+plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
+plt.plot(p_total, void_ratio_total, '-g', label='Total void ratio')
+plt.plot(p[0], void_ratio_q[0], 'b.', label='')
+plt.plot(p_total[0], void_ratio_total[0], 'g.', label='')
+plt.plot(p[-1], void_ratio_q[-1], 'bx', label='')
+plt.plot(p_total[-1], void_ratio_total[-1], 'gx', label='')
+plt.xlabel(pressure_label)
+plt.ylabel(e_label)
+plt.legend()
+plt.savefig(f"p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 # Bulk Friction vs. Time
-plt.figure()
-plt.plot(np.arange(load_length) * dt, q_total / p_total, 'b')
-plt.plot(0 * dt, q_total[0] / p_total[0], 'b+', label='')
-plt.plot(load_length * dt, q_total[-1] / p_total[-1], 'b.', label='')
-plt.xlabel(ctime)
-plt.ylabel(cmu)
-plt.title(r"Bulk Friction vs. Time")
+plt.figure(figsize=figsize)
+plt.plot(np.arange(load_length) * dt, q / p, '-b', label=r"Quasi-static friction ($\mu^{\mathrm{q}}$)")
+plt.plot(np.arange(load_length) * dt, q_total / p_total, '-g', label=r"Total friction ($\mu$)")
+plt.plot(0 * dt, q[0] / p[0], 'b.', label='')
+plt.plot(0 * dt, q_total[0] / p_total[0], 'g.', label='')
+plt.plot(load_length * dt, q[-1] / p[-1], 'bx', label='')
+plt.plot(load_length * dt, q_total[-1] / p_total[-1], 'gx', label='')
+plt.xlabel(time_label)
+plt.ylabel(mu_label)
+plt.legend()
+plt.savefig(f"mu_{void_ratio_0:.3f}_{OCR:.3f}.png")
 
 plt.show()
