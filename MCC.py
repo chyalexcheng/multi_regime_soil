@@ -24,7 +24,7 @@ load_length = int(1e5)  # [-] 'loadsteps'
 dt = time / load_length
 
 # Collisional contribution parameters
-Delta_Phi = 4e-4
+Delta_Phi = 10.0
 M_c = 1.8
 
 # Define a loading history
@@ -155,11 +155,11 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
     if d_eqp_inc != 0:
         # Get sign of the acceleration rate, positive: accelerate; negative decelerate.
         # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
-        sign = np.sign(d_eqp_inc * eq[i])
+        #sign = np.sign(d_eqp_inc * eq[i])
 
         Phi = 1.0 / (1.0 + void_ratio_q[i])
-        de_v_c = - Phi_0 / Phi ** 2 * Delta_Phi * sign * de_q_norm
-        d_p_c[i + 1] = p_total[i] / (lambda_val * Phi ** 2) * Delta_Phi * sign * de_q_norm
+        de_v_c = - Phi_0 / Phi ** 2 * Delta_Phi * d_eqp_inc
+        d_p_c[i + 1] = p[i] / (lambda_val * Phi ** 2) * Delta_Phi * d_eqp_inc
 
         K_c = d_p_c[i + 1] / de_v_c
         G_c = d_p_c[i + 1] * M_c / de_q_norm

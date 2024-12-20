@@ -94,7 +94,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
         Phi = 1.0 / (1.0 + e[i + 1])
         sign = np.sign(d_eqp_inc * eq[i])
         evp_inc += - Phi_0 / Phi ** 2 * Delta_Phi * d_eqp_inc
-        d_p_c[i + 1] = p_total[i] / (lambda_val * Phi ** 2) * Delta_Phi * d_eqp_inc
+        d_p_c[i + 1] = p[i] / (lambda_val * Phi ** 2) * Delta_Phi * d_eqp_inc
         p_c[i + 1] = p_c[i] + d_p_c[i + 1]
         q_c[i + 1] = q_c[i] + d_p_c[i + 1] * M_c
     else:
