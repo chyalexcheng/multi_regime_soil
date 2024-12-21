@@ -8,7 +8,7 @@ rcParams['font.family'] = 'serif'
 
 # Cam-clay critical state parameters
 pc_0 = 150.0  # 'Initial consolidation pressure [kPa]'
-M = 0.95  # 'Critical friction angle'
+M = 1.0  # 'Critical friction angle'
 lambda_val = 0.2  # 'Lambda'
 kappa = 0.04  # 'kappa'
 N = 2.5  # 'Intercept of the normal consolidation line'
@@ -19,7 +19,7 @@ p0 = 150.0  # 'Initial confining pressure [kPa]'
 V = N - (lambda_val * np.log(pc_0)) + (kappa * np.log(pc_0 / p0))  # Specific Volume
 void_ratio_0 = V - 1  # Initial void ratio
 Phi_0 = 1.0 / (1.0 + void_ratio_0)  # Initial solid volume fraction
-deformation_mode = 'drained'
+deformation_mode = input('Enter the deformation mode: [1] drained and [2] undrained\n')
 
 # Maximum shear strain and number of load steps for the quasi-static stage
 eqp_tot = 100.0  # [%] 'total plastic shear strain'
@@ -28,8 +28,10 @@ load_length = int(1e5)  # [-] 'loadsteps'
 dt = time / load_length
 
 # Collisional contribution parameters
-Delta_Phi = 10.0
-M_c = 1.8
+Delta_Phi = 50.0
+M_c = 2.0
+# TODO: for some reason, there is a factor of three missing...
+M_c /= 3.0
 
 # Define a loading history
 eqp_inc = eqp_tot / (1e2 * load_length)  # [-] 'incrementl applied plastic shear strain'
@@ -164,7 +166,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
         # Get the direction of the deviatoric strain
         de_v = np.sum(d_epsilon[:3])
         de_q = d_epsilon - np.array([1., 1., 1., 0, 0, 0]) * de_v
-        de_q_norm = np.sqrt(3. / 2. * de_q.dot(de_q))
+        de_q_norm = np.sqrt(2. / 3. * de_q.dot(de_q))
         de_q_direction = de_q / de_q_norm
 
         # Calculate collisional stress
@@ -173,7 +175,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
             #sign = np.sign(d_eqp_inc * eq[i])
 
-            Phi = 1.0 / (1.0 + void_ratio_q[i])
+            Phi = 1.0 / (1.0 + (void_ratio_total[i]-void_ratio_q[i]))
             de_v_c = - Phi_0 / Phi ** 2 * Delta_Phi * d_eqp_inc
             d_p_c[i + 1] = p[i] / (lambda_val * Phi ** 2) * Delta_Phi * d_eqp_inc
 
@@ -393,7 +395,7 @@ plt.plot(load_length * dt, p_total[-1], 'gx', label='')
 plt.xlabel(time_label)
 plt.ylabel(pressure_label)
 plt.legend()
-plt.savefig(f"p_and_p_c_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_p_and_p_c_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Deviatoric Stress (q) vs. Time
 plt.figure(figsize=figsize)
@@ -406,7 +408,7 @@ plt.plot(load_length * dt, q_total[-1], 'gx', label='')
 plt.xlabel(time_label)
 plt.ylabel(dev_stress_label)
 plt.legend()
-plt.savefig(f"q_and_q_c_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_q_and_q_c_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Volumetric and Deviatoric Strain vs. Time
 plt.figure(figsize=figsize)
@@ -424,7 +426,7 @@ ax2.plot(0 * dt, ev[0], 'g.', label='')
 ax2.plot(load_length * dt, ev[-1], 'gx', label='')
 ax2.set_ylabel(r"Volumetric strain ($\varepsilon_v$)", color='g')
 ax2.tick_params(axis='y', labelcolor='g')
-plt.savefig(f"e_v_and_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_e_v_and_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Pre-consolidation Pressure vs. Time
 plt.figure(figsize=figsize)
@@ -433,7 +435,7 @@ plt.plot(0 * dt, pc_history[0], 'b.', label='')
 plt.plot(load_length * dt, pc_history[-1], 'bx', label='')
 plt.xlabel(time_label)
 plt.ylabel(preconsolidation_p_label)
-plt.savefig(f"preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Ratio between collisional and quasistatic stress vs. Time
 plt.figure(figsize=figsize)
@@ -446,7 +448,7 @@ plt.plot(load_length * dt, q_c[-1] / q[-1], 'gx', label='')
 plt.xlabel(time_label)
 plt.ylabel(p_ratio_label)
 plt.legend()
-plt.savefig(f"p_c_over_p_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_p_c_over_p_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Deviatoric Stress vs. Pressure
 plt.figure(figsize=figsize)
@@ -460,7 +462,7 @@ plt.plot(p_total[-1], q_total[-1], 'gx', label='')
 plt.xlabel(pressure_label)
 plt.ylabel(dev_stress_label)
 plt.legend()
-plt.savefig(f"p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Void Ratios vs. Pressure
 plt.figure(figsize=figsize)
@@ -473,7 +475,7 @@ plt.plot(p_total[-1], void_ratio_total[-1], 'gx', label='')
 plt.xlabel(pressure_label)
 plt.ylabel(e_label)
 plt.legend()
-plt.savefig(f"p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Bulk Friction vs. Time
 plt.figure(figsize=figsize)
@@ -486,6 +488,6 @@ plt.plot(load_length * dt, q_total[-1] / p_total[-1], 'gx', label='')
 plt.xlabel(time_label)
 plt.ylabel(mu_label)
 plt.legend()
-plt.savefig(f"mu_{void_ratio_0:.3f}_{OCR:.3f}.png")
+plt.savefig(f"{deformation_mode}_mu_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 plt.show()

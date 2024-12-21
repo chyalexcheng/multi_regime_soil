@@ -141,10 +141,10 @@ while a<nIter:
 	p_fyield = np.linspace(1,pc,nIter);
 	q_fyield = M*p_fyield;
 	# Plot the final yield locus
-	qyf = (M**2*(pc*p_fyield-p_fyield**2))**0.5;
+	qyf = (M**2*(pc*p_fyield-p_fyield**2))**0.5;    
 	
 	if a%(nIter/200) == 0:
-		plt.plot(np.array([0,2.0*p[a]]),np.array([0,2.0*q[a]]),'k--')
+		plt.plot(np.array([0,2.0*p[a,0]]),np.array([0,2.0*q[a,0]]),'k--')
 		plt.plot(p[p.nonzero()],q[q.nonzero()],'r',label='stress path');
 		plt.plot(p_fyield,q_fyield,'k');
 		plt.plot(p_fyield,qyf,'b-');
