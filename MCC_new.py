@@ -46,8 +46,9 @@ load_length = eqp_inc_history.shape[0]
 
 plt.figure('Load history')
 plt.plot(np.arange(load_length) * dt, eqp_inc_history / dt, '-b')
-plt.xlabel('Time [s]')
-plt.ylabel('Shear strain rate [1/s]')
+plt.xlabel(r'Time $t$ [s]')
+plt.ylabel(r'Shear strain rate $\dot{\gamma}$ [1/s]')
+plt.savefig(f"load_history.png", dpi=300, bbox_inches="tight")
 
 # Declarations
 void_ratio_total = np.zeros(load_length)
@@ -175,7 +176,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
             #sign = np.sign(d_eqp_inc * eq[i])
 
-            Phi = 1.0 / (1.0 + (void_ratio_total[i]-void_ratio_q[i]))
+            Phi = 1.0 / (1.0 + void_ratio_q[i])
             de_v_c = - Phi_0 / Phi ** 2 * Delta_Phi * d_eqp_inc
             d_p_c[i + 1] = p[i] / (lambda_val * Phi ** 2) * Delta_Phi * d_eqp_inc
 
@@ -490,4 +491,35 @@ plt.ylabel(mu_label)
 plt.legend()
 plt.savefig(f"{deformation_mode}_mu_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
+# Void ratios vs. Time
+void_ratio_e = void_ratio_total - void_ratio_q
+plt.figure(figsize=figsize)
+plt.plot(np.arange(load_length) * dt, void_ratio_q-void_ratio_q[0], '-b', label=r"$e^{\mathrm{p}}-e^{\mathrm{p}}_0$")
+plt.plot(np.arange(load_length) * dt, void_ratio_e-void_ratio_e[0], '-g', label=r"$e{\mathrm{e}}$")
+plt.xlabel(time_label)
+plt.ylabel(e_label)
+plt.legend()
+plt.savefig(f"{deformation_mode}_e_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
+
 plt.show()
+
+# CSL
+#pCSL = np.linspace(10,100,100)
+#qCSL = M * pCSL;
+#eCSL = (N - l*np.log(pCSL)) - 1.2;
+#p_yield = np.linspace(60,90,100);
+#q_yield = (M**2*(150*p_yield-p_yield**2))**0.5;    
+
+#plt.figure(figsize=figsize)
+#plt.plot(pCSL, qCSL, 'r',label='Critical state line')
+#plt.plot(p_yield,q_yield,'k-',label='Yield surface');
+#plt.xlabel(r'Pressure $p$')
+#plt.ylabel(r'Deviatoric stress $q$')
+#plt.legend()
+#plt.savefig("p_q_CSL.png", dpi=300, bbox_inches="tight")
+
+#plt.figure(figsize=figsize)
+#plt.plot(np.log(pCSL), eCSL, 'r')
+#plt.xlabel(r'Logarithm of pressure $\ln(p)$')
+#plt.ylabel(r'Deviatoric stress $q$')
+#plt.savefig("e_p_CSL.png", dpi=300, bbox_inches="tight")
