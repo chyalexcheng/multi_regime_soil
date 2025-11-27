@@ -197,7 +197,8 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             # Get the deviatoric part of the acceleration rate tensor ?
             Phi = 1.0 / (1.0 + void_ratio_q[i])
             de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc
-            d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc
+            #d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc
+            d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc
 
             K_c = d_p_c[i + 1] / de_v_c
             G_c = d_p_c[i + 1] * M_c / d_eqp_inc / 3
@@ -273,7 +274,7 @@ mu_label = r'Ratio of deviatoric stress to pressure $q/p$ [-]'
 pressure_label = r'Pressure $p$ [kPa]'
 dev_stress_label = r'Deviatoric stress $q$ [kPa]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
-preconsolidation_p_label = 'Pre-consolidation stress [kPa]'
+preconsolidation_p_label = 'Pre-consolidation pressure [kPa]'
 p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
 e_label = r'Void ratio $e$ [-]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
@@ -420,6 +421,7 @@ plt.plot(load_length * dt, p_total[-1], 'gx', ms=10, label='')
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_i * dt, p[p_i], f'b{m_i}',ms=10, mfc='none');
     plt.plot(p_i * dt, p_total[p_i], f'g{m_i}',ms=10, mfc='none');
+#plt.ylim(top=150)
 plt.xlabel(time_label)
 plt.ylabel(pressure_label)
 plt.legend()
@@ -438,6 +440,7 @@ for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_i * dt, q_total[p_i], f'g{m_i}',ms=10, mfc='none');
 plt.xlabel(time_label)
 plt.ylabel(dev_stress_label)
+#plt.ylim(top=300)
 plt.legend()
 plt.savefig(f"{deformation_mode}_q_and_q_c_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
@@ -450,6 +453,7 @@ ax1.plot(load_length * dt, eq[-1], 'kx', ms=10, label='')
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_i * dt, eq[p_i], f'k{m_i}',ms=10, mfc='none');
 ax1.set_xlabel(time_label)
+ax1.set_ylim(top=160)
 ax1.set_ylabel(r'Deviatoric strain ($\gamma$)', color='black')
 ax1.tick_params(axis='y', labelcolor='k')
 
@@ -460,6 +464,7 @@ ax2.plot(load_length * dt, ev[-1], 'x', ms=10, label='', color='gray')
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_i * dt, ev[p_i], f'{m_i}',ms=10, mfc='none', color='gray')
 ax2.set_ylabel(r"Volumetric strain ($\varepsilon_v$)", color='gray')
+ax2.set_ylim(top=0.085)
 ax2.tick_params(axis='y', labelcolor='gray')
 plt.savefig(f"{deformation_mode}_e_v_and_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
@@ -504,9 +509,9 @@ for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p[p_i], q[p_i], f'b{m_i}',ms=10, mfc='none')
 plt.xlabel(pressure_label)
 plt.ylabel(dev_stress_label)
-plt.xlim(0,260)
-plt.ylim(0,300)
-plt.legend()
+plt.xlim(0,350)
+plt.ylim(0,393.75)
+plt.legend(loc='upper left')
 plt.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Void Ratios vs. Pressure
@@ -538,9 +543,11 @@ for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_total[p_i], void_ratio_total[p_i], f'g{m_i}',ms=10, mfc='none')
 plt.xlim(xlim)
 plt.ylim(ylim)
+plt.xlim(145, 330)
+plt.ylim(0.26, 0.33)
 plt.xlabel(pressure_label)
 plt.ylabel(e_label)
-plt.legend()
+#plt.legend()
 plt.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Bulk Friction vs. Time
@@ -666,8 +673,8 @@ plt.annotate(
     arrowprops=dict(arrowstyle='->', color='blue', linestyle=(0, (5, 5)), linewidth=2)
 )
 
-plt.xlabel(r'Pressure $p$')
-plt.ylabel(r'Deviatoric stress $q$')
+plt.xlabel(r'Pressure $p$ [$p_{ref}$]')
+plt.ylabel(r'Deviatoric stress $q$ [$p_{ref}$]')
 plt.xlim(0,110)
 plt.ylim(0)
 plt.legend()
@@ -693,8 +700,8 @@ plt.annotate(
     arrowprops=dict(arrowstyle='->', color='blue', linestyle=(0, (5, 5)), linewidth=2)
 )
 
-plt.xlabel(r'Pressure $\ln(p)$')
-plt.ylabel(r'Plastic void ratio $e=\frac{1}{\phi}-1$')
+plt.xlabel(r'Pressure $\ln(p)$ [$p_{ref}$]')
+plt.ylabel(r'Critical-state void ratio $e^\mathrm{cs}=\frac{1}{\phi^\mathrm{cs}}-1$')
 plt.xlim(10,110)
 plt.savefig("e_p_c.png", dpi=300, bbox_inches="tight")
 
@@ -714,11 +721,11 @@ q_yield = (M**2*(50*p_yield-p_yield**2))**0.5;
 plt.plot(p_yield,q_yield,'k--',label='Initial yield surface');
 plt.plot([50, 65.5],[0, 15.5*3],'b-', label='Stress path');
 plt.annotate('', xy=(66, 16*3), xytext=(50, 0),
-             arrowprops=dict(arrowstyle='->', color='b'))
+             arrowprops=dict(arrowstyle='-|>, head_width=0.4, head_length=0.7', color='b'))
 
 plt.xlim(0,110)
 plt.ylim(0)
 plt.legend()
-plt.xlabel(r'Pressure $p$')
-plt.ylabel(r'Deviatoric stress $q$')
+plt.xlabel(r'Pressure $p$ [$p_{ref}$]')
+plt.ylabel(r'Deviatoric stress $q$ [$p_{ref}$]')
 plt.savefig("MCC.png", dpi=300, bbox_inches="tight")
