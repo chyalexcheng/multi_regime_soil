@@ -22,14 +22,68 @@ def lighten(color, amount):
     return tuple((1 - amount) * c + amount * white)
 
 def segmented_plot(ax, x, y, points, **kwargs):
-    idx = [0] + points + [len(x)]
+    idx = points
     for i in range(len(idx)-1):
         i0, i1 = idx[i], idx[i+1]
         if i1 > i0:
             ax.plot(x[i0:i1], y[i0:i1], **kwargs)
 
+# Load history
+def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers):
+    ax_load.plot([-20, 500], [0, 0], '--k')
+    ax_load.plot(np.arange(load_length ) * dt, eqp_inc_history / dt, label=label, color=color_load)
+    for i, (p_i, m_i) in enumerate(zip(points, markers)):
+        ax_load.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc='none');
+    ax_load.plot(0 * dt, eqp_inc_history[0] / dt, '.', color=color_load, ms=10, label='')
+    ax_load.plot(load_length  * dt, eqp_inc_history[-1] / dt, 'x', color=color_load, ms=10, label='')
+    ax_load.set_xlabel(r'Time $t$ [s]')
+    ax_load.set_ylabel(r'Axial strain rate $\dot{\varepsilon_{zz}}$ [1/s]')
+    ax_load.set_xlim(-10, 410)
+    ax_load.legend()
+    
+# Deviatoric Stress vs. Pressure
+def plot_p_q(p, q, label, color_qs, points):
+    point1 = points[0]
+    segmented_plot(ax_p_q, p, q, [point1, len(p)-1], label=label, color=color_qs)
+    for p_i, m_i in zip(points, markers):
+        ax_p_q.plot(p[p_i], q[p_i], marker=m_i, color=color_qs, ms=10, mfc='none')
+    ax_p_q.set_xlabel(pressure_label)
+    ax_p_q.set_ylabel(dev_stress_label)
+    ax_p_q.legend()    
+    
+# Void Ratios vs. Pressure
+def plot_e_p(p, void_ratio_q, label, color_qs, points):
+    point1 = points[0]
+    segmented_plot(ax_e_p, p, void_ratio_q, [point1, len(p)-1], label=label, color=color_qs)
+    for p_i, m_i in zip(points, markers):
+        ax_e_p.plot(p[p_i], void_ratio_q[p_i], marker=m_i, color=color_qs, ms=10, mfc='none')
+    ax_e_p.set_xlabel(pressure_label)
+    ax_e_p.set_ylabel(e_label)
+    ax_e_p.legend()    
+
+# Gamma dot vs. mu
+def plot_gamma_mu(xg, yg, label, color_total, points):
+    point1 = points[0]
+    segmented_plot(ax_gamma, xg, yg, [point1, len(p)-1], label=label, color=color_total)
+    for p_i, m_i in zip(points, markers):
+        ax_gamma.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc='none')
+    ax_gamma.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
+    ax_gamma.set_ylabel(mu_label)
+    ax_gamma.legend()
+
+# Solid volume fraction vs. shear rate
+def plot_phi_gamma(void_ratio_total, xg, label, color_total, points):
+    point1 = points[0]
+    phi = 1/(1 + void_ratio_total)
+    segmented_plot(ax_phi, xg, phi, [point1, len(p)-1], label=label, color=color_total)
+    for p_i, m_i in zip(points, markers):
+        ax_phi.plot(xg[p_i], phi[p_i], marker=m_i, color=color_total, ms=10, mfc='none')
+    ax_phi.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
+    ax_phi.set_ylabel(r'Solid volume fraction $\phi$')
+    ax_phi.legend()
+
 # Cam-clay critical state parameters
-pc_0 = 3 * 150.0  # 'Initial consolidation pressure [kPa]'
+pc_0 = 1 * 150.0  # 'Initial consolidation pressure [kPa]'
 M = 1.0  # 'Critical friction angle'
 lambda_val = 0.2  # 'Lambda'
 kappa = 0.04  # 'kappa'
@@ -50,11 +104,11 @@ load_length = int(1e5)  # [-] 'loadsteps'
 dt = time / load_length
 
 # Collisional contribution parameters
-Delta_Phi = 25.0
+Delta_Phi = 0.025
 M_c = 1.5
 
 # Time needed to accelerate or decelerate
-accel_times = [0.1, 0.5, 1.0]
+accel_times = [0.01, 0.1, 1.0]
 total_time = 2.5
 n_runs = len(accel_times)
 
@@ -74,19 +128,25 @@ fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
 fig_height = a4_half_width / fig_aspect_ratio
 figsize = (a4_half_width, fig_height)
 
+# Create figures
+fig_load_history, ax_load = plt.subplots()
+fig_p_q, ax_p_q = plt.subplots(figsize=figsize)
+fig_e_p, ax_e_p = plt.subplots(figsize=figsize)
+fig_gamma, ax_gamma = plt.subplots(figsize=figsize)
+fig_phi, ax_phi = plt.subplots(figsize=figsize)
+
 for k, accel_time in enumerate(accel_times):
 
     alpha = (k / max(n_runs-1, 1)) * 0.7  
     # 0.7 so they never become too washed-out (tune if needed)
 
     color_qs    = lighten('b', alpha)   # quasi-static curves
-    color_total = lighten('g', alpha)   # total curves
+    color_total = lighten('k', alpha)   # total curves
     color_csl   = 'r'                   # critical state line
-    color_mark  = 'k'                   # point markers (keep black)
     color_load  = lighten('k', alpha)   # load history curve (light dark-grey)
     
     # Define a loading history
-    eqp_inc = eqp_tot / (1e2 * load_length)  # [-] 'incrementâlly applied plastic shear strain'
+    eqp_inc = eqp_tot / (1e2 * time / dt)  # [-] 'incrementâlly applied plastic shear strain'
     eqp_inc_history = np.concatenate([
         np.ones(round(1.0 / eqp_inc)) * eqp_inc,
         np.linspace(eqp_inc, 100 * eqp_inc, round(accel_time / eqp_inc)),
@@ -100,21 +160,7 @@ for k, accel_time in enumerate(accel_times):
     point4 = point3 + round(accel_time / eqp_inc)
     points = [point1, point2, point3, point4]
     markers = ['^', '>', 'v', '<']
-    total_load_length = eqp_inc_history.shape[0]
-    
-    fig_load_history = plt.figure('Load history')
-    plt.plot([-10, 360], [0, 0], '--k')
-    plt.plot(np.arange(total_load_length ) * dt, eqp_inc_history / dt, color=color_load)
-    x_offset = total_load_length  * dt * 0.03
-    y_offset = max(eqp_inc_history) / dt * 0.03
-    for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        plt.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc='none');
-    plt.plot(0 * dt, eqp_inc_history[0] / dt, '.', color=color_load, ms=10, label='')
-    plt.plot(total_load_length  * dt, eqp_inc_history[-1] / dt, 'x', color=color_load, ms=10, label='')
-    plt.xlabel(r'Time $t$ [s]')
-    plt.ylabel(r'Axial strain rate $\dot{\varepsilon_{zz}}$ [1/s]')
-    ymin, ymax = plt.ylim()
-    plt.xlim(-10, 410)
+    load_length = eqp_inc_history.shape[0]
     
     # Declarations
     void_ratio_total = np.zeros(load_length)
@@ -247,9 +293,9 @@ for k, accel_time in enumerate(accel_times):
     
                 # Get the deviatoric part of the acceleration rate tensor ?
                 Phi = 1.0 / (1.0 + void_ratio_q[i])
-                de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc
-                #d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc
-                d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc
+                de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc / dt
+                #d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
+                d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
     
                 K_c = d_p_c[i + 1] / de_v_c
                 G_c = d_p_c[i + 1] * M_c / d_eqp_inc / 3
@@ -461,87 +507,83 @@ for k, accel_time in enumerate(accel_times):
     # labels
     plt.xlabel(ctime)
     plt.ylabel(cmu)
-    
-    plt.show()   
+    # Save figure
+    accel = max(eqp_inc_history[1:]-eqp_inc_history[0:-1])/dt/dt
+    plt.savefig(f'{round(accel,3):.2f}_summary' + '.png', dpi=300, bbox_inches='tight')   
 
-    #%% Individual production plots
-    
-    # Deviatoric Stress vs. Pressure
-    fig_p_q = plt.figure(figsize=figsize)
-    plt.plot([0, np.max(p) * 1.5], [0, M * np.max(p) * 1.5], '-r', label='Critical state line')
-    plt.plot(p, q, '-b', markevery=500, label=r"Quasi-static stress")
-    plt.plot(p_total, q_total, '-g', label=r"Total stress")
-    plt.plot(p[0], q[0], 'b.', ms=10, label='')
-    plt.plot(p[-1], q[-1], 'bx', ms=10, label='')
-    plt.plot(p_total[0], q_total[0], 'g.', ms=10, label='')
-    plt.plot(p_total[-1], q_total[-1], 'gx', ms=10, label='')
-    for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        plt.plot(p_total[p_i], q_total[p_i], f'g{m_i}',ms=10, mfc='none')
-        plt.plot(p[p_i], q[p_i], f'b{m_i}',ms=10, mfc='none')
-    plt.xlabel(pressure_label)
-    plt.ylabel(dev_stress_label)
-    #plt.xlim(0,350)
-    #plt.ylim(0,393.75)
-    plt.legend(loc='upper left')
-    
-    # Void Ratios vs. Pressure
-    fig_e_p = plt.figure(figsize=figsize)
-    plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
-    plt.plot(p_total, void_ratio_total, '-g', label='Total void ratio')
-    plt.plot(p[0], void_ratio_q[0], 'b.', ms=10, label='')
-    plt.plot(p_total[0], void_ratio_total[0], 'g.', ms=10, label='')
-    plt.plot(p[-1], void_ratio_q[-1], 'bx', ms=10, label='')
-    plt.plot(p_total[-1], void_ratio_total[-1], 'gx', ms=10, label='')
-    for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        plt.plot(p[p_i], void_ratio_q[p_i], f'b{m_i}',ms=10, mfc='none')
-        plt.plot(p_total[p_i], void_ratio_total[p_i], f'g{m_i}',ms=10, mfc='none')
-    xlim = plt.xlim()
-    ylim = plt.ylim()
-    pCSL = np.linspace(10,400,1000)
-    Gamma = void_ratio_q[-1] + lambda_val*np.log(p[-1])
-    eCSL = Gamma - lambda_val*np.log(pCSL);
-    plt.clf() # clear everything in this figure
-    plt.plot(pCSL, eCSL, '-r', label='Critical state line')
-    plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
-    plt.plot(p_total, void_ratio_total, '-g', label='Total void ratio')
-    plt.plot(p[0], void_ratio_q[0], 'b.', ms=10, label='')
-    plt.plot(p_total[0], void_ratio_total[0], 'g.', ms=10, label='')
-    plt.plot(p[-1], void_ratio_q[-1], 'bx', ms=10, label='')
-    plt.plot(p_total[-1], void_ratio_total[-1], 'gx', ms=10, label='')
-    for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        plt.plot(p[p_i], void_ratio_q[p_i], f'b{m_i}',ms=10, mfc='none')
-        plt.plot(p_total[p_i], void_ratio_total[p_i], f'g{m_i}',ms=10, mfc='none')
-    plt.xlim(xlim)
-    plt.ylim(ylim)
-    #plt.xlim(145, 330)
-    #plt.ylim(0.26, 0.33)
-    plt.xlabel(pressure_label)
-    plt.ylabel(e_label)
-    
-     # Gamma dot vs. mu
-    fig_gamma_dot_mu = plt.figure(figsize=figsize)
-    plt.plot(eqp_inc_history / dt, (q_total/p_total))
-    plt.xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
-    plt.ylabel(mu_label)
-    plt.ylim(1)
-    plt.savefig(f"{deformation_mode}_mu_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
+# Replot the figures
+fig_load_history, ax_load = plt.subplots()
+fig_p_q, ax_p_q = plt.subplots(figsize=figsize)
+fig_e_p, ax_e_p = plt.subplots(figsize=figsize)
+fig_gamma, ax_gamma = plt.subplots(figsize=figsize)
+fig_phi, ax_phi = plt.subplots(figsize=figsize)
+for k, (p_total, q_total, void_ratio_total,
+        p, q, void_ratio_q,
+        p_c, q_c,
+        accel_time) in enumerate(list(zip(p_total_list, q_total_list, void_ratio_total_list,
+                                               p_list, q_list, void_ratio_q_list,
+                                               p_c_list, q_c_list,
+                                               accel_times[::-1]))):
+    alpha = (1 - k / max(n_runs - 1, 1)) * 0.7
+    color_qs    = lighten('b', alpha)   # quasi-static curves
+    color_csl   = 'r'                   # critical state line
+    color_load  = lighten('k', alpha)   # load history curve (light dark-grey)
 
-    plt.figure(figsize=figsize)
-    plt.plot(eqp_inc_history[point1:point2] / dt, 1/(1+void_ratio_total[point1:point2]))
-    plt.plot(eqp_inc_history[point2:point3] / dt, 1/(1+void_ratio_total[point2:point3]))
-    plt.plot(eqp_inc_history[point3:point4] / dt, 1/(1+void_ratio_total[point3:point4]))
-    plt.plot(eqp_inc_history[point4:] / dt, 1/(1+void_ratio_total[point4:]))
-    x_offset = 0.03
-    y_offset = 0.00
-    for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        plt.plot(eqp_inc_history[p_i] / dt, 1/(1+void_ratio_total[p_i]), f'k{m_i}',ms=10, mfc='none');
-        plt.text(eqp_inc_history[p_i] / dt + x_offset, 1/(1+void_ratio_total[p_i])  + y_offset, f"{i+1}", fontsize=12)
-    plt.xlabel('Shear rate')
-    plt.ylabel('Solid volume fraction (total)')
-    
+    # Define a loading history
+    eqp_inc = eqp_tot / (1e2 * time / dt)  # [-] 'incrementâlly applied plastic shear strain'
+    eqp_inc_history = np.concatenate([
+        np.ones(round(1.0 / eqp_inc)) * eqp_inc,
+        np.linspace(eqp_inc, 100 * eqp_inc, round(accel_time / eqp_inc)),
+        np.ones(round((total_time -2*accel_time)/ eqp_inc)) * 100 * eqp_inc,
+        np.linspace(100 * eqp_inc, eqp_inc, round(accel_time / eqp_inc)),
+        np.ones(round(0.5 / eqp_inc)) * eqp_inc,
+    ])
+    point1 = round(1.0 / eqp_inc)
+    point2 = point1 + round(accel_time / eqp_inc)
+    point3 = point2 + round((total_time -2*accel_time) / eqp_inc)
+    point4 = point3 + round(accel_time / eqp_inc)
+    points = [point1, point2, point3, point4]
+    markers = ['^', '>', 'v', '<', 'x']
+    label = rf'$\ddot{{\varepsilon}}_{{zz}} = {round(accel,3):.2f}$ 1/s$^2$'
+    load_length = eqp_inc_history.shape[0]
 
-# Save load history figure    
-fig_load_history.savefig(f"load_history.png", dpi=300, bbox_inches="tight")
-fig_p_q.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
-fig_e_p.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
-fig_gamma_dot_mu.savefig("gamma_phi_transient.png", dpi=300, bbox_inches="tight")
+    # Individual production plots
+    accel = max(eqp_inc_history[1:]-eqp_inc_history[0:-1])/dt/dt
+    points = [point1, point2, point3, point4, len(p)-1]
+    label = rf'$\ddot{{\varepsilon}}_{{zz}} = {np.ceil(accel*1e2)/1e2:.2f}$ 1/s$^2$'
+    plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers)
+    plot_p_q(p, q, label, color_qs, points)
+    plot_e_p(p, void_ratio_q, label, color_qs, points)
+    gamma_dot = eqp_inc_history/dt
+    mu = q_total/p_total
+    plot_gamma_mu(gamma_dot, mu, label, color_qs, points)
+    plot_phi_gamma(void_ratio_q, gamma_dot, label, color_qs, points)
+
+x_min, x_max = ax_p_q.get_xlim()
+y_min, y_max = ax_p_q.get_ylim()
+p_line = np.linspace(x_min, x_max, 10)
+# Critical state line in p-q
+ax_p_q.plot(p_line, M * p_line, '-', color=color_csl, label='Critical state line', zorder=0)
+ax_p_q.set_xlim(x_min, x_max)
+ax_p_q.set_ylim(y_min, y_max)
+ax_p_q.legend()
+# Critical state line in e-p
+Gamma = void_ratio_q[point1] + lambda_val * np.log(p[point1])
+eCSL = Gamma - lambda_val * np.log(p_line)
+ax_e_p.plot(p_line, eCSL, '-', color=color_csl, label='Critical state line', zorder=0)
+ax_e_p.set_xlim(x_min, x_max)
+ax_e_p.legend()
+# Dilatancy relation in gamma phi
+x_min, x_max = ax_phi.get_xlim()
+gamma_line = np.linspace(x_min, x_max, 10)
+dilatancy_line = 1/(1 + void_ratio_q_list[0][point1]) + 0.00025 - Delta_Phi * gamma_line
+ax_phi.plot(gamma_line, dilatancy_line, color=color_csl, label='Rate-induced dilatancy', zorder=0)
+ax_phi.set_xlim(x_min, x_max)
+ax_phi.legend()
+
+fig_load_history.savefig(f"{deformation_mode}_load_history.png", dpi=300, bbox_inches="tight")
+fig_p_q.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+fig_e_p.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+fig_gamma.savefig(f"{deformation_mode}_gamma_vs_mu_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+fig_phi.savefig(f"{deformation_mode}_gamma_vs_phi_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+plt.show()
