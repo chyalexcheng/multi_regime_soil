@@ -523,7 +523,7 @@ for k, (p_total, q_total, void_ratio_total,
         accel_time) in enumerate(list(zip(p_total_list, q_total_list, void_ratio_total_list,
                                                p_list, q_list, void_ratio_q_list,
                                                p_c_list, q_c_list,
-                                               accel_times[::-1]))):
+                                               accel_times))):
     alpha = (1 - k / max(n_runs - 1, 1)) * 0.7
     color_qs    = lighten('b', alpha)   # quasi-static curves
     color_csl   = 'r'                   # critical state line
@@ -544,19 +544,18 @@ for k, (p_total, q_total, void_ratio_total,
     point4 = point3 + round(accel_time / eqp_inc)
     points = [point1, point2, point3, point4]
     markers = ['^', '>', 'v', '<', 'x']
-    label = rf'$\ddot{{\varepsilon}}_{{zz}} = {round(accel,3):.2f}$ 1/s$^2$'
     load_length = eqp_inc_history.shape[0]
 
     # Individual production plots
     accel = max(eqp_inc_history[1:]-eqp_inc_history[0:-1])/dt/dt
     points = [point1, point2, point3, point4, len(p)-1]
-    label = rf'$\ddot{{\varepsilon}}_{{zz}} = {np.ceil(accel*1e2)/1e2:.2f}$ 1/s$^2$'
+    label = rf'$|\ddot{{\varepsilon}}_{{zz}}| = {np.ceil(accel*1e2)/1e2:.2f}$ 1/s$^2$'
     plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers)
     plot_p_q(p, q, label, color_qs, points)
     plot_e_p(p, void_ratio_q, label, color_qs, points)
     gamma_dot = eqp_inc_history/dt
     mu = q_total/p_total
-    plot_gamma_mu(gamma_dot, mu, label, color_qs, points)
+    plot_gamma_mu(gamma_dot, mu, label, color_load, points)
     plot_phi_gamma(void_ratio_q, gamma_dot, label, color_qs, points)
 
 x_min, x_max = ax_p_q.get_xlim()
@@ -576,7 +575,7 @@ ax_e_p.legend()
 # Dilatancy relation in gamma phi
 x_min, x_max = ax_phi.get_xlim()
 gamma_line = np.linspace(x_min, x_max, 10)
-dilatancy_line = 1/(1 + void_ratio_q_list[0][point1]) + 0.00025 - Delta_Phi * gamma_line
+dilatancy_line = 1/(1 + void_ratio_q_list[0][point1]) - Delta_Phi * gamma_line
 ax_phi.plot(gamma_line, dilatancy_line, color=color_csl, label='Rate-induced dilatancy', zorder=0)
 ax_phi.set_xlim(x_min, x_max)
 ax_phi.legend()
