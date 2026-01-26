@@ -605,7 +605,7 @@ plt.figure(figsize=figsize)
 pCSL = np.linspace(1,110,110)
 eCSL = (N - lambda_val*np.log(pCSL)) - 1.2;
 plt.semilogx(pCSL, eCSL, 'r')
-plt.xlabel(r'Pressure $\ln(p)$')
+plt.xlabel(r'Pressure $p$')
 plt.ylabel(r'Void ratio $e=\frac{1}{\phi}-1$')
 plt.xlim(1,110)
 plt.savefig("e_p_CSL.png", dpi=300, bbox_inches="tight")

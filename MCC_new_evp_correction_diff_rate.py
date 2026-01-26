@@ -33,11 +33,15 @@ def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, marke
     ax_load.plot([-20, 500], [0, 0], '--k')
     ax_load.plot(np.arange(load_length ) * dt, eqp_inc_history / dt, label=label, color=color_load)
     for i, (p_i, m_i) in enumerate(zip(points, markers)):
-        ax_load.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc='none');
+        if m_i == '^':
+            mfc = 'red'
+        else:
+            mfc = 'none'
+        ax_load.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc=mfc);
     ax_load.plot(0 * dt, eqp_inc_history[0] / dt, '.', color=color_load, ms=10, label='')
     ax_load.plot(load_length  * dt, eqp_inc_history[-1] / dt, 'x', color=color_load, ms=10, label='')
     ax_load.set_xlabel(r'Time $t$ [s]')
-    ax_load.set_ylabel(r'Axial strain rate $\dot{\varepsilon_{zz}}$ [1/s]')
+    ax_load.set_ylabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
     ax_load.set_xlim(-10, 410)
     ax_load.legend()
     
@@ -46,7 +50,11 @@ def plot_p_q(p, q, label, color_qs, points):
     point1 = points[0]
     segmented_plot(ax_p_q, p, q, [point1, len(p)-1], label=label, color=color_qs)
     for p_i, m_i in zip(points, markers):
-        ax_p_q.plot(p[p_i], q[p_i], marker=m_i, color=color_qs, ms=10, mfc='none')
+        if m_i == '^':
+            mfc = 'red'
+        else:
+            mfc = 'none'
+        ax_p_q.plot(p[p_i], q[p_i], marker=m_i, color=color_qs, ms=10, mfc=mfc)
     ax_p_q.set_xlabel(pressure_label)
     ax_p_q.set_ylabel(dev_stress_label)
     ax_p_q.legend()    
@@ -56,7 +64,11 @@ def plot_e_p(p, void_ratio_q, label, color_qs, points):
     point1 = points[0]
     segmented_plot(ax_e_p, p, void_ratio_q, [point1, len(p)-1], label=label, color=color_qs)
     for p_i, m_i in zip(points, markers):
-        ax_e_p.plot(p[p_i], void_ratio_q[p_i], marker=m_i, color=color_qs, ms=10, mfc='none')
+        if m_i == '^':
+            mfc = 'red'
+        else:
+            mfc = 'none'
+        ax_e_p.plot(p[p_i], void_ratio_q[p_i], marker=m_i, color=color_qs, ms=10, mfc=mfc)
     ax_e_p.set_xlabel(pressure_label)
     ax_e_p.set_ylabel(e_label)
     ax_e_p.legend()    
@@ -66,8 +78,12 @@ def plot_gamma_mu(xg, yg, label, color_total, points):
     point1 = points[0]
     segmented_plot(ax_gamma, xg, yg, [point1, len(p)-1], label=label, color=color_total)
     for p_i, m_i in zip(points, markers):
-        ax_gamma.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc='none')
-    ax_gamma.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
+        if m_i == '^':
+            mfc = 'red'
+        else:
+            mfc = 'none'
+        ax_gamma.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
+    ax_gamma.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
     ax_gamma.set_ylabel(mu_label)
     ax_gamma.legend()
 
@@ -77,8 +93,12 @@ def plot_phi_gamma(void_ratio_total, xg, label, color_total, points):
     phi = 1/(1 + void_ratio_total)
     segmented_plot(ax_phi, xg, phi, [point1, len(p)-1], label=label, color=color_total)
     for p_i, m_i in zip(points, markers):
-        ax_phi.plot(xg[p_i], phi[p_i], marker=m_i, color=color_total, ms=10, mfc='none')
-    ax_phi.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
+        if m_i == '^':
+            mfc = 'red'
+        else:
+            mfc = 'none'
+        ax_phi.plot(xg[p_i], phi[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
+    ax_phi.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
     ax_phi.set_ylabel(r'Solid volume fraction $\phi$')
     ax_phi.legend()
 
@@ -549,18 +569,21 @@ for k, (p_total, q_total, void_ratio_total,
     # Individual production plots
     accel = max(eqp_inc_history[1:]-eqp_inc_history[0:-1])/dt/dt
     points = [point1, point2, point3, point4, len(p)-1]
-    label = rf'$|\ddot{{\varepsilon}}_{{zz}}| = {np.ceil(accel*1e2)/1e2:.2f}$ 1/s$^2$'
+    label = rf'$|\ddot{{\varepsilon}}_{{zz}}| = {np.ceil(accel*1e2)/1e2:.2f}$ s$^{-2}$'
     plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers)
     plot_p_q(p, q, label, color_qs, points)
+    # plot_p_q(p_total, q_total, label, color_load, points)
     plot_e_p(p, void_ratio_q, label, color_qs, points)
+    # plot_e_p(p_total, void_ratio_total, label, color_load, points)
     gamma_dot = eqp_inc_history/dt
-    mu = q_total/p_total
-    plot_gamma_mu(gamma_dot, mu, label, color_load, points)
+    plot_gamma_mu(gamma_dot, q/p, label, color_qs, points)
+    # plot_gamma_mu(gamma_dot, q_total/p_total, label, color_load, points)
     plot_phi_gamma(void_ratio_q, gamma_dot, label, color_qs, points)
+    # plot_phi_gamma(void_ratio_total, gamma_dot, label, color_load, points)
 
 x_min, x_max = ax_p_q.get_xlim()
 y_min, y_max = ax_p_q.get_ylim()
-p_line = np.linspace(x_min, x_max, 10)
+p_line = np.linspace(x_min, x_max, 100)
 # Critical state line in p-q
 ax_p_q.plot(p_line, M * p_line, '-', color=color_csl, label='Critical state line', zorder=0)
 ax_p_q.set_xlim(x_min, x_max)
@@ -574,11 +597,15 @@ ax_e_p.set_xlim(x_min, x_max)
 ax_e_p.legend()
 # Dilatancy relation in gamma phi
 x_min, x_max = ax_phi.get_xlim()
-gamma_line = np.linspace(x_min, x_max, 10)
+gamma_line = np.linspace(x_min, x_max, 100)
 dilatancy_line = 1/(1 + void_ratio_q_list[0][point1]) - Delta_Phi * gamma_line
 ax_phi.plot(gamma_line, dilatancy_line, color=color_csl, label='Rate-induced dilatancy', zorder=0)
 ax_phi.set_xlim(x_min, x_max)
 ax_phi.legend()
+# Bulk friction in gamma mu
+ax_gamma.plot(gamma_line, np.ones(100) * M, color=color_csl, label=r'$\mu^{\mathrm{cs}}$', zorder=0)
+ax_gamma.set_xlim(x_min, x_max)
+ax_gamma.legend()
 
 fig_load_history.savefig(f"{deformation_mode}_load_history.png", dpi=300, bbox_inches="tight")
 fig_p_q.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
