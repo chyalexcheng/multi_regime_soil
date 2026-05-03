@@ -7,6 +7,7 @@ import matplotlib.colors as mcolors
 
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
+rcParams['font.size'] = 14
 
 def lighten(color, amount):
     """
@@ -107,6 +108,7 @@ pc_0 = 1 * 150.0  # 'Initial consolidation pressure [kPa]'
 M = 1.0  # 'Critical friction angle'
 lambda_val = 0.2  # 'Lambda'
 kappa = 0.04  # 'kappa'
+Gamma = 1.39  # 'Intercept of the critical state line'
 N = 2.5  # 'Intercept of the normal consolidation line'
 nu = 0.15  # 'Poisson ratio'
 
@@ -147,13 +149,6 @@ a4_half_width = 6  # in inches
 fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
 fig_height = a4_half_width / fig_aspect_ratio
 figsize = (a4_half_width, fig_height)
-
-# Create figures
-fig_load_history, ax_load = plt.subplots()
-fig_p_q, ax_p_q = plt.subplots(figsize=figsize)
-fig_e_p, ax_e_p = plt.subplots(figsize=figsize)
-fig_gamma, ax_gamma = plt.subplots(figsize=figsize)
-fig_phi, ax_phi = plt.subplots(figsize=figsize)
 
 for k, accel_time in enumerate(accel_times):
 
@@ -312,7 +307,8 @@ for k, accel_time in enumerate(accel_times):
                 #sign = np.sign(d_eqp_inc * eq[i])
     
                 # Get the deviatoric part of the acceleration rate tensor ?
-                Phi = 1.0 / (1.0 + void_ratio_q[i])
+                # Phi = 1.0 / (1.0 + void_ratio_q[i])
+                Phi = 1.0 / (1.0 + Gamma - lambda_val * np.log(p[i]))
                 de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc / dt
                 #d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
                 d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
@@ -375,7 +371,7 @@ for k, accel_time in enumerate(accel_times):
         # Update specific volume
         V = N - (lambda_val * np.log(pc)) + (kappa * np.log(pc / p[i + 1]))
         void_ratio_q[i + 1] = V - 1
-        void_ratio_total[i + 1] = void_ratio_0 - (1 + void_ratio_0) * ev[i + 1]
+        void_ratio_total[i + 1] = void_ratio_total[i] - (1 + void_ratio_total[i]) * d_epsilon[:3].sum()
     
         if yield_surf < 0:
             yield_surf = q[i + 1] ** 2 + M ** 2 * p[i + 1] ** 2 - M ** 2 * p[i + 1] * pc
@@ -397,7 +393,7 @@ for k, accel_time in enumerate(accel_times):
     
     # Full text long labels
     time_label = r'Time ($t$) [s]'
-    mu_label = r'Ratio of deviatoric stress to pressure $q/p$ [-]'
+    mu_label = r'Stress ratio $q/p$ [-]'
     pressure_label = r'Pressure $p$ [kPa]'
     dev_stress_label = r'Deviatoric stress $q$ [kPa]'
     ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
@@ -569,7 +565,7 @@ for k, (p_total, q_total, void_ratio_total,
     # Individual production plots
     accel = max(eqp_inc_history[1:]-eqp_inc_history[0:-1])/dt/dt
     points = [point1, point2, point3, point4, len(p)-1]
-    label = rf'$|\ddot{{\varepsilon}}_{{zz}}| = {np.ceil(accel*1e2)/1e2:.2f}$ s$^{-2}$'
+    label = rf'$|\ddot{{\varepsilon}}_{{zz}}| = {np.ceil(accel*1e2)/1e2:.2f}$ s' + r'$^{-2}$'
     plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers)
     plot_p_q(p, q, label, color_qs, points)
     # plot_p_q(p_total, q_total, label, color_load, points)

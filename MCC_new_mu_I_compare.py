@@ -7,6 +7,7 @@ from matplotlib import cm
 
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
+rcParams['font.size'] = 14
 
 # Cam-clay critical state parameters
 pc_0_list = np.array([150.0, 300, 450])  # 'Initial consolidation pressure [kPa]'
