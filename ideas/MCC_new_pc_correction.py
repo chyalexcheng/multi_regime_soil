@@ -41,7 +41,7 @@ load_length = int(1e5)  # [-] 'loadsteps'
 dt = time / load_length
 
 # Collisional contribution parameters
-Delta_Phi = 25.0
+Delta_Phi = 10.0
 M_c = 1.5
 
 # Define a loading history
@@ -104,6 +104,7 @@ OCR = pc_0 / p0  # Over Consolidation Ratio
 K_c = 0
 G_c = 0
 pc = pc_0
+pc_history[0] = pc
 p[0] = p0
 p_total[0] = p0
 sigma = np.array([p0, p0, p0, 0.0, 0.0, 0.0])
@@ -159,7 +160,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
                     De_c[m, n] = K_c
                     D_c[m, n] = 4 / 3 * G_c
                 elif n <= 2:
-                    De[m, n] = K - 2 / 3 * G
+                    De[m, n] = K + 2 / 3 * G
                     De_c[m, n] = K_c
                     D_c[m, n] = - 2 / 3 * G_c
             if m > 2:
@@ -212,9 +213,11 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             Phi_c = 1.0 / (1.0 + void_ratio_cp[i])
             de_v_c = - Phi / Phi_c ** 2 * Delta_Phi * d_eqp_inc_eff
             # d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff
-            d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff
+            # d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff
 
-            K_c = d_p_c[i + 1] / de_v_c
+            # Get bulk modulus from D_q
+            d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
+            d_p_c[i + 1] = (D_q.dot(-d_epsilon_v_c))[:3].sum()/3
             G_c = d_p_c[i + 1] * M_c / d_eqp_inc_eff / 3
         else:
             p_c[i + 1] = p_c[i]
@@ -243,8 +246,8 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             de_v_p = float(d_epsilon_p[0, 0] + d_epsilon_p[1, 0] + d_epsilon_p[2, 0])
 
         # Update stress increments
-        d_sigma_q = D_q.dot(d_epsilon - d_epsilon_v_c)
-        d_sigma_c = De_c.dot(d_epsilon_v_c) + D_c.dot(d_d_epsilon - 1./3. * d_d_epsilon[:3].sum() * np.array([1., 1., 1., 0, 0, 0]))
+        d_sigma_q = D_q.dot(d_epsilon)
+        d_sigma_c = D_q.dot(-d_epsilon_v_c) + D_c.dot(d_d_epsilon - 1./3. * d_d_epsilon[:3].sum() * np.array([1., 1., 1., 0, 0, 0]))
 
         return d_sigma_q, d_sigma_c, d_epsilon, de_v_p
 
@@ -264,8 +267,8 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
     
     sigma_q += d_sigma_q
     sigma_c += d_sigma_c
-    sigma = sigma_q + sigma_c
-    epsilon += d_epsilon
+    sigma = sigma_q + sigma_c # + d_p_c[i + 1] * np.array([1., 1., 1., 0, 0, 0]) + d_p_c[i + 1] * M_c * de_q_direction
+    epsilon += d_epsilon  # + 1. / 3 * de_v_c * np.array([1., 1., 1., 0, 0, 0])
 
     # Update stress invariants
     p_total[i + 1] = np.sum(sigma[:3]) / 3.0
@@ -289,8 +292,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
     u[i + 1] = p0 + q_total[i + 1] / 3. - p_total[i + 1]
 
     # Update specific volume
-    V = N - (lambda_val * np.log(pc)) + (kappa * np.log(pc / p[i + 1]))
-    void_ratio_q[i + 1] = V - 1
+    void_ratio_q[i + 1] = N - (lambda_val * np.log(pc)) + (kappa * np.log(pc / p[i + 1])) - 1
     void_ratio_cp[i + 1] = void_ratio_cp[i] - (1 + void_ratio_total[i]) * de_v_c
     void_ratio_total[i + 1] = void_ratio_total[i] - (1 + void_ratio_total[i]) * d_epsilon[:3].sum()
 
