@@ -6,6 +6,11 @@ from matplotlib import rcParams
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
 rcParams['font.size'] = 14
+plt.rcParams.update({
+    "axes.grid": True,
+    "grid.linestyle": "--",
+    "grid.linewidth": 0.7,
+})
 
 def get_deviatoric_strain(tensor):
     eps_v = np.sum(tensor[:3])
@@ -63,7 +68,7 @@ load_length = eqp_inc_history.shape[0]
 
 plt.figure('Load history')
 plt.plot([-10, 360], [0, 0], '--k')
-plt.plot(np.arange(load_length) * dt, eqp_inc_history / dt, '-k')
+plt.plot(np.arange(load_length) * dt, eqp_inc_history / dt, '-k', label=rf'$|\ddot{{\varepsilon}}_{{zz}}| = 0.02$ s' + r'$^{-2}$')
 x_offset = load_length * dt * 0.03
 y_offset = max(eqp_inc_history) / dt * 0.03
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
@@ -76,6 +81,7 @@ plt.ylabel(r'Axial strain rate $\dot{\varepsilon_{zz}}$ [1/s]')
 ymin, ymax = plt.ylim()
 plt.xlim(-10, 360)
 plt.ylim(ymin, ymax + np.ceil(y_offset * 10) / 10)
+plt.legend()
 plt.savefig(f"load_history.png", dpi=300, bbox_inches="tight")
 
 # Declarations
@@ -447,8 +453,8 @@ text_box_props = dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.5, ed
 
 # Pressure vs. Time
 plt.figure(figsize=figsize)
-plt.plot(np.arange(load_length) * dt, p, '-b', label=r"Quasi-static pressure ($p^{\mathrm{q}}$)")
 plt.plot(np.arange(load_length) * dt, p_total, '-g', label=r"Total pressure ($p$)")
+plt.plot(np.arange(load_length) * dt, p, '-b', label=r"Quasi-static pressure ($p^{\mathrm{q}}$)")
 plt.plot(0 * dt, p[0], 'b.', ms=10, label='')
 plt.plot(0 * dt, p_total[0], 'g.', ms=10, label='')
 plt.plot(load_length * dt, p[-1], 'bx', ms=10, label='')
@@ -466,14 +472,14 @@ plt.ylabel(pressure_label)
 if deformation_mode == 'undrained' and OCR == 3.0:
     plt.ylim(-10, 360)
 elif deformation_mode == 'undrained' and OCR == 1.0:
-    plt.ylim(-5, 155)
+    plt.ylim(-5, 165)
 plt.legend()
 plt.savefig(f"{deformation_mode}_p_and_p_c_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
 # Deviatoric Stress (q) vs. Time
 plt.figure(figsize=figsize)
-plt.plot(np.arange(load_length) * dt, q, '-b', label=r"Quasi-static deviatoric stress ($q^{\mathrm{q}}$)")
 plt.plot(np.arange(load_length) * dt, q_total, '-g', label=r"Total deviatoric stress ($q$)")
+plt.plot(np.arange(load_length) * dt, q, '-b', label=r"Quasi-static deviatoric stress ($q^{\mathrm{q}}$)")
 plt.plot(0 * dt, q[0], 'b.', ms=10, label='')
 plt.plot(0 * dt, q_total[0], 'g.', ms=10, label='')
 plt.plot(load_length * dt, q[-1], 'bx', ms=10, label='')
@@ -492,7 +498,7 @@ if deformation_mode == 'drained':
 elif deformation_mode == 'undrained' and OCR == 3.0:
     plt.ylim(-10, 360)
 elif deformation_mode == 'undrained' and OCR == 1.0:
-    plt.ylim(-5, 155)
+    plt.ylim(-5, 165)
 plt.legend(loc='lower center')
 plt.savefig(f"{deformation_mode}_q_and_q_c_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
@@ -503,9 +509,11 @@ ax1.plot(np.arange(load_length) * dt, eq, '-k', ms=10, label='')
 ax1.plot(0 * dt, eq[0], 'k.', ms=10, label='')
 ax1.plot(load_length * dt, eq[-1], 'kx', ms=10, label='')
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
-    plt.plot(p_i * dt, eq[p_i], f'k{m_i}',ms=10, mfc='none');
+    plt.plot(p_i * dt, eq[p_i], f'k{m_i}',ms=10, mfc='none')
+    plt.text(p_i * dt + x_offset, eq[p_i], f"{i+1}", fontsize=14, color='gray', bbox=text_box_props)
 ax1.set_xlabel(time_label)
-ax1.set_ylim(top=160)
+ax1.set_ylim(0,160)
+ax1.set_yticks(np.linspace(0, 160, 6))
 ax1.set_ylabel(r'Deviatoric strain ($\gamma$)', color='black')
 ax1.tick_params(axis='y', labelcolor='k')
 
@@ -513,12 +521,11 @@ ax2 = ax1.twinx()
 ax2.plot(np.arange(load_length) * dt, ev, '-', color='gray')
 ax2.plot(0 * dt, ev[0], '.', ms=10, label='', color='gray')
 ax2.plot(load_length * dt, ev[-1], 'x', ms=10, label='', color='gray')
-y_offset = max(ev) * 0.03
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
     plt.plot(p_i * dt, ev[p_i], f'{m_i}',ms=10, mfc='none', color='gray')
-    plt.text(p_i * dt + x_offset, ev[p_i] + y_offset, f"{i+1}", fontsize=14, color='gray', bbox=text_box_props)
+    plt.text(p_i * dt + x_offset, ev[p_i] - 0.02, f"{i+1}", fontsize=14, color='gray', bbox=text_box_props)
 ax2.set_ylabel(r"Volumetric strain ($\varepsilon_v$)", color='gray')
-ax2.set_ylim(bottom=-0.12, top=0.1)
+ax2.set_ylim(bottom=-0.15, top=0.1)
 ax2.tick_params(axis='y', labelcolor='gray')
 plt.savefig(f"{deformation_mode}_e_v_and_gamma_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
@@ -558,8 +565,8 @@ plt.savefig(f"{deformation_mode}_p_c_over_p_{void_ratio_0:.3f}_{OCR:.3f}.png", d
 # Deviatoric Stress vs. Pressure
 plt.figure(figsize=figsize)
 plt.plot([0, np.max(p) * 1.5], [0, M * np.max(p) * 1.5], '-r', label='Critical state line')
-plt.plot(p, q, '-b', markevery=500, label=r"Quasi-static path")
 plt.plot(p_total, q_total, '-g', label=r"Total path")
+plt.plot(p, q, '-b', markevery=500, label=r"Quasi-static path")
 plt.plot(p[0], q[0], 'b.', ms=10, label='')
 plt.plot(p[-1], q[-1], 'bx', ms=10, label='')
 plt.plot(p_total[0], q_total[0], 'g.', ms=10, label='')
@@ -584,8 +591,8 @@ plt.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=3
 
 # Void Ratios vs. Pressure
 plt.figure(figsize=figsize)
-plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
 plt.plot(p_total, void_ratio_total, '-g', label='Total void ratio')
+plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
 plt.plot(p[0], void_ratio_q[0], 'b.', ms=10, label='')
 plt.plot(p_total[0], void_ratio_total[0], 'g.', ms=10, label='')
 plt.plot(p[-1], void_ratio_q[-1], 'bx', ms=10, label='')
@@ -600,8 +607,8 @@ Gamma = void_ratio_q[-1] + lambda_val*np.log(p[-1])
 eCSL = Gamma - lambda_val*np.log(pCSL);
 plt.clf() # clear everything in this figure
 plt.plot(pCSL, eCSL, '-r', label='Critical state line')
-plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
 plt.plot(p_total, void_ratio_total, '-g', label='Total void ratio')
+plt.plot(p, void_ratio_q, '-b', label=r"Quasi-static void ratio")
 plt.plot(p[0], void_ratio_q[0], 'b.', ms=10, label='')
 plt.plot(p_total[0], void_ratio_total[0], 'g.', ms=10, label='')
 plt.plot(p[-1], void_ratio_q[-1], 'bx', ms=10, label='')
@@ -627,8 +634,8 @@ plt.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.pn
 plt.figure(figsize=figsize)
 plt.axhline(1.0, color='red', linestyle='--', label=r'$\mu^{\mathrm{cs}}$')
 plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{c}}$')
-plt.plot(np.arange(load_length) * dt, q / p, '-b', label=r"Quasi-static friction ($\mu^{\mathrm{q}}$)")
 plt.plot(np.arange(load_length) * dt, q_total / p_total, '-g', label=r"Total friction ($\mu$)")
+plt.plot(np.arange(load_length) * dt, q / p, '-b', label=r"Quasi-static friction ($\mu^{\mathrm{q}}$)")
 plt.plot(0 * dt, q[0] / p[0], 'b.', ms=10, label='')
 plt.plot(0 * dt, q_total[0] / p_total[0], 'g.', ms=10, label='')
 plt.plot(load_length * dt, q[-1] / p[-1], 'bx', ms=10, label='')
@@ -648,6 +655,7 @@ plt.savefig(f"{deformation_mode}_mu_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, 
 # Void ratios (volumetric strains) vs. Time
 ev_e = ev - ev_qp - ev_cp
 plt.figure(figsize=figsize)
+plt.plot(np.arange(load_length) * dt, ev, '-', color='gray', label=r"$\varepsilon_v$")
 plt.plot(np.arange(load_length) * dt, ev_e, '-g', label=r"$\varepsilon_v^{\mathrm{e}}$")
 plt.plot(np.arange(load_length) * dt, ev_qp, '-b', label=r"$\varepsilon_v^{\mathrm{p,q}}$")
 plt.plot(np.arange(load_length) * dt, ev_cp, '-m', label=r"$\varepsilon_v^{\mathrm{p,c}}$")
@@ -656,9 +664,11 @@ y_offset_qp = max(ev_qp) * 0.01
 y_offset_e = max(ev_e) * 0.01
 y_offset_cp = max(ev_cp) * 0.01
 for i, (p_i, m_i) in enumerate(zip(points, markers)):
+    plt.plot(p_i * dt, ev[p_i], f'{m_i}',color='gray',ms=10, mfc='none')
     plt.plot(p_i * dt, ev_qp[p_i], f'b{m_i}',ms=10, mfc='none')
     plt.plot(p_i * dt, ev_e[p_i], f'g{m_i}',ms=10, mfc='none')
     plt.plot(p_i * dt, ev_cp[p_i], f'm{m_i}',ms=10, mfc='none')
+    plt.text(p_i * dt + x_offset, ev[p_i] - y_offset_e, f"{i+1}", fontsize=12, color='gray', bbox=text_box_props)
     plt.text(p_i * dt + x_offset, ev_qp[p_i] + y_offset_qp, f"{i+1}", fontsize=12, color='blue', bbox=text_box_props)
     plt.text(p_i * dt + x_offset, ev_e[p_i] + y_offset_e, f"{i+1}", fontsize=12, color='green', bbox=text_box_props)
     plt.text(p_i * dt + x_offset, ev_cp[p_i] + y_offset_cp, f"{i+1}", fontsize=12, color='magenta', bbox=text_box_props)
@@ -669,9 +679,10 @@ plt.plot(load_length * dt, ev_qp[-1], 'bx', ms=10, label='')
 plt.plot(load_length * dt, ev_e[-1], 'gx', ms=10, label='')
 plt.plot(load_length * dt, ev_cp[-1], 'mx', ms=10, label='')
 if deformation_mode == 'drained':
-    plt.ylim(-0.085, 0.085)
+    plt.ylim(-0.15, 0.1)
 elif deformation_mode == 'undrained':
-    plt.ylim(-0.045, 0.045)
+    plt.ylim(-0.05, 0.05)
+    plt.yticks(np.linspace(-0.05, 0.05, 5))
 plt.xlabel(time_label)
 plt.ylabel(ev_label)
 plt.legend()
