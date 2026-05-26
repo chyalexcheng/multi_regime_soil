@@ -709,3 +709,56 @@ for i, (p_i, m_i) in enumerate(zip(points, markers)):
 plt.xlabel('Shear rate')
 plt.ylabel('Solid volume fraction (total)')
 plt.savefig("gamma_phi_transient.png", dpi=300, bbox_inches="tight")
+
+#%% Save all data to a .npz file
+input_data = {
+    'deformation_mode': np.array(deformation_mode),
+    'p0': p0,
+    'pc_0': pc_0,
+    'OCR': OCR,
+    'M': M,
+    'lambda_val': lambda_val,
+    'kappa': kappa,
+    'Gamma': Gamma,
+    'N': N,
+    'nu': nu,
+    'Delta_Phi': Delta_Phi,
+    'M_c': M_c,
+    'time': time,
+    'dt': dt,
+    'load_length': load_length,
+    'eqp_tot': eqp_tot,
+    'eqp_inc_history': eqp_inc_history,
+    'void_ratio_0': void_ratio_0,
+    'Phi_0': Phi_0,
+}
+
+output_data = {
+    'p': p,
+    'q': q,
+    'p_total': p_total,
+    'q_total': q_total,
+    'p_c': p_c,
+    'q_c': q_c,
+    'u': u,
+    'ev': ev,
+    'eq': eq,
+    'ev_e': ev_e,
+    'ev_cp': ev_cp,
+    'ev_qp': ev_qp,
+    'void_ratio_q': void_ratio_q,
+    'void_ratio_cp': void_ratio_cp,
+    'void_ratio_total': void_ratio_total,
+    'pc_history': pc_history,
+    'd_p_c': d_p_c,
+    'sigma': sigma,
+    'sigma_q': sigma_q,
+    'sigma_c': sigma_c,
+    'epsilon': epsilon,
+}
+
+np.savez_compressed(
+    f"{deformation_mode}_data_{void_ratio_0:.3f}_{OCR:.3f}.npz",
+    **{f'input__{k}': v for k, v in input_data.items()},
+    **{f'output__{k}': v for k, v in output_data.items()},
+)
