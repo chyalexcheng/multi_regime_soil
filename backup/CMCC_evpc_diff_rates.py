@@ -4,10 +4,25 @@ import matplotlib.pyplot as plt
 from scipy.optimize import root 
 from matplotlib import rcParams
 import matplotlib.colors as mcolors
-
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
 rcParams['font.size'] = 14
+plt.rcParams.update({
+    "axes.grid": True,
+    "grid.linestyle": "--",
+    "grid.linewidth": 0.7,
+})
+
+def get_deviatoric_strain(tensor):
+    eps_v = np.sum(tensor[:3])
+    eps_dev = tensor - np.array([eps_v/3., eps_v/3., eps_v/3., 0., 0., 0.])
+    dev_contract = (
+        eps_dev[0]**2 + eps_dev[1]**2 + eps_dev[2]**2
+        + 2.0*(eps_dev[3]**2 + eps_dev[4]**2 + eps_dev[5]**2)
+    )
+    eps_q = np.sqrt(2.0/3.0 * dev_contract)
+    direction = eps_dev / eps_q if eps_q > 0.0 else np.zeros_like(tensor)
+    return eps_q, direction
 
 def lighten(color, amount):
     """
@@ -29,6 +44,13 @@ def segmented_plot(ax, x, y, points, **kwargs):
         if i1 > i0:
             ax.plot(x[i0:i1], y[i0:i1], **kwargs)
 
+def expand_ylim_for_annotations(ax, top_frac=0.10, bottom_frac=0.03):
+    y_min_cur, y_max_cur = ax.get_ylim()
+    y_diff = np.abs(y_max_cur - y_min_cur)
+    if y_diff == 0:
+        y_diff = 1.0
+    ax.set_ylim(y_min_cur - bottom_frac * y_diff, y_max_cur + top_frac * y_diff)
+
 # Load history
 def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers):
     ax_load.plot([-20, 500], [0, 0], '--k')
@@ -38,7 +60,7 @@ def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, marke
             mfc = 'red'
         else:
             mfc = 'none'
-        ax_load.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc=mfc);
+        ax_load.plot(p_i * dt, eqp_inc_history[p_i] / dt, f'{m_i}', color=color_load, ms=10, mfc=mfc)
     ax_load.plot(0 * dt, eqp_inc_history[0] / dt, '.', color=color_load, ms=10, label='')
     ax_load.plot(load_length  * dt, eqp_inc_history[-1] / dt, 'x', color=color_load, ms=10, label='')
     ax_load.set_xlabel(r'Time $t$ [s]')
@@ -50,7 +72,7 @@ def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, marke
 def plot_p_q(p, q, label, color_qs, points):
     point1 = points[0]
     segmented_plot(ax_p_q, p, q, [point1, len(p)-1], label=label, color=color_qs)
-    for p_i, m_i in zip(points, markers):
+    for i, (p_i, m_i) in enumerate(zip(points, markers)):
         if m_i == '^':
             mfc = 'red'
         else:
@@ -64,7 +86,7 @@ def plot_p_q(p, q, label, color_qs, points):
 def plot_e_p(p, void_ratio_q, label, color_qs, points):
     point1 = points[0]
     segmented_plot(ax_e_p, p, void_ratio_q, [point1, len(p)-1], label=label, color=color_qs)
-    for p_i, m_i in zip(points, markers):
+    for i, (p_i, m_i) in enumerate(zip(points, markers)):
         if m_i == '^':
             mfc = 'red'
         else:
@@ -77,31 +99,30 @@ def plot_e_p(p, void_ratio_q, label, color_qs, points):
 # Gamma dot vs. mu
 def plot_gamma_mu(xg, yg, label, color_total, points):
     point1 = points[0]
-    segmented_plot(ax_gamma, xg, yg, [point1, len(p)-1], label=label, color=color_total)
-    for p_i, m_i in zip(points, markers):
+    segmented_plot(ax_mu, xg, yg, [point1, len(p)-1], label=label, color=color_total)
+    for i, (p_i, m_i) in enumerate(zip(points, markers)):
         if m_i == '^':
             mfc = 'red'
         else:
             mfc = 'none'
-        ax_gamma.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
-    ax_gamma.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
-    ax_gamma.set_ylabel(mu_label)
-    ax_gamma.legend()
+        ax_mu.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
+    ax_mu.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
+    ax_mu.set_ylabel(mu_label)
+    ax_mu.legend()
 
 # Solid volume fraction vs. shear rate
-def plot_phi_gamma(void_ratio_total, xg, label, color_total, points):
+def plot_gamma_e(void_ratio, xg, label, color_total, points):
     point1 = points[0]
-    phi = 1/(1 + void_ratio_total)
-    segmented_plot(ax_phi, xg, phi, [point1, len(p)-1], label=label, color=color_total)
-    for p_i, m_i in zip(points, markers):
+    segmented_plot(ax_void, xg, void_ratio, [point1, len(p)-1], label=label, color=color_total)
+    for i, (p_i, m_i) in enumerate(zip(points, markers)):
         if m_i == '^':
             mfc = 'red'
         else:
             mfc = 'none'
-        ax_phi.plot(xg[p_i], phi[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
-    ax_phi.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
-    ax_phi.set_ylabel(r'Solid volume fraction $\phi$')
-    ax_phi.legend()
+        ax_void.plot(xg[p_i], void_ratio[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
+    ax_void.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
+    ax_void.set_ylabel(r'Void ratio $e$')
+    ax_void.legend()
 
 # Cam-clay critical state parameters
 pc_0 = 1 * 150.0  # 'Initial consolidation pressure [kPa]'
@@ -180,10 +201,13 @@ for k, accel_time in enumerate(accel_times):
     # Declarations
     void_ratio_total = np.zeros(load_length)
     void_ratio_q = np.zeros(load_length)
+    void_ratio_cp = np.zeros(load_length)
     p = np.zeros(load_length)
     q = np.zeros(load_length)
     u = np.zeros(load_length)
     ev = np.zeros(load_length)
+    ev_cp = np.zeros(load_length)
+    ev_qp = np.zeros(load_length)
     eq = np.zeros(load_length)
     d_p_c = np.zeros(load_length)
     p_c = np.zeros(load_length)
@@ -210,7 +234,8 @@ for k, accel_time in enumerate(accel_times):
     de_q_direction = np.zeros(6)
     void_ratio_total[0] = void_ratio_0
     void_ratio_q[0] = void_ratio_0
-    
+    void_ratio_cp[0] = void_ratio_0
+
     # Initialize the yield surf surface
     yield_surf = (q[0] ** 2 / M ** 2 + p[0] ** 2) - p[0] * pc
     
@@ -265,18 +290,18 @@ for k, accel_time in enumerate(accel_times):
                     else:
                         De[m, n] = 0
                         D_c[m, n] = 0
-    
+
             # If the yield surface is negative, the stiffness matrix is elastic
             if yield_surf < 0:
                 D_q = De
-    
+
             # If the yield surface is positive, the stiffness matrix is elastic-plastic
             else:
                 D_q = De - (De.dot(df_ds).dot(df_ds.T).dot(De)) / (
                         -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds))
-    
+
         def compute_stress_increment(args):
-            global K_c, G_c, de_v_c, de_q_direction
+            global K_c, G_c, de_v_c, de_q_direction, d_eqp_inc
             ratio = args[0]
             # Fill the strain increment vector
             if deformation_mode == 'drained':
@@ -293,61 +318,72 @@ for k, accel_time in enumerate(accel_times):
                     [eqp_inc, -eqp_inc / 2., -eqp_inc / 2., 0., 0., 0.])
                 d_d_epsilon = np.array(
                     [d_eqp_inc, -d_eqp_inc / 2., -d_eqp_inc / 2., 0., 0., 0.])
-    
-            # Get the direction of the deviatoric strain
-            de_v = np.sum(d_epsilon[:3])
-            de_q = d_epsilon - np.array([1., 1., 1., 0, 0, 0]) * de_v
-            de_q_norm = np.sqrt(2. / 3. * de_q.dot(de_q))
-            de_q_direction = de_q / de_q_norm
-    
+
+            # Magnitude of the increment in deviatoric shear strain rate (from tensor),
+            d_eqp_inc_mag, _ = get_deviatoric_strain(d_d_epsilon)
+            # Keep acceleration/deceleration sign convention from loading-history increment.
+            d_eqp_inc_eff = np.sign(d_eqp_inc) * d_eqp_inc_mag
+
             # Calculate collisional stress
-            if d_eqp_inc != 0:
-                # Get sign of the acceleration rate, positive: accelerate; negative decelerate.
-                # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
-                #sign = np.sign(d_eqp_inc * eq[i])
-    
+            if d_eqp_inc_mag != 0:
                 # Get the deviatoric part of the acceleration rate tensor ?
-                # Phi = 1.0 / (1.0 + void_ratio_q[i])
-                Phi = 1.0 / (1.0 + Gamma - lambda_val * np.log(p[i]))
-                de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc / dt
-                #d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
-                d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc / dt
-    
+                Phi = 1.0 / (1.0 + void_ratio_total[i])
+                de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc_eff / dt
+                # d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff / dt
+                d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff / dt
+
                 K_c = d_p_c[i + 1] / de_v_c
-                G_c = d_p_c[i + 1] * M_c / d_eqp_inc / 3
+                G_c = d_p_c[i + 1] * M_c / d_eqp_inc_eff / 3
             else:
                 p_c[i + 1] = p_c[i]
                 q_c[i + 1] = q_c[i]
                 de_v_c = 0
                 K_c = 0
                 G_c = 0
-    
-            # Get collision-induced plastic strain increment
+
+            # Get collisional stress-induced plastic strain increment
             d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
             
+            # Get quasi-static stress induced plastic volumetric strain increment
+            if yield_surf < 0:
+                de_v_p = 0
+            else:
+                # Compute the plastic multiplier increment
+                num = (df_ds.T).dot(De).dot(d_epsilon - d_epsilon_v_c)
+                den = -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds)
+                # if size of num and den are not 1, through an error
+                if num.shape != (1,) or den.shape != (1, 1):
+                    raise ValueError(f"num and den should be scalars, but got num: {num}, den: {den}")
+                # cast num and den to float to avoid the case where num and den are both zero, which causes dLambda to be an array instead of a scalar
+                dLambda = float(num[0] / den[0, 0])
+                # Get the plastic volumetric strain increment due to quasi-static stress
+                d_epsilon_p = dLambda * df_ds
+                de_v_p = float(d_epsilon_p[0, 0] + d_epsilon_p[1, 0] + d_epsilon_p[2, 0])
+
+            # Update stress increments
             d_sigma_q = D_q.dot(d_epsilon - d_epsilon_v_c)
-            d_sigma_c = De_c.dot(d_epsilon_v_c) + D_c.dot(d_d_epsilon)
-    
-            return d_sigma_q, d_sigma_c, d_epsilon
+            d_sigma_c = De_c.dot(d_epsilon_v_c) + D_c.dot(d_d_epsilon - 1./3. * d_d_epsilon[:3].sum() * np.array([1., 1., 1., 0, 0, 0]))
+
+            return d_sigma_q, d_sigma_c, d_epsilon, de_v_p
     
         def servo_control(ratio):
-            d_sigma_q, d_sigma_c, d_epsilon = compute_stress_increment(ratio)
+            d_sigma_q, d_sigma_c, _, _ = compute_stress_increment(ratio)
             d_sigma = d_sigma_q + d_sigma_c
             return abs(np.sum(d_sigma[:3]))
-    
+
         # Update stress
         ratio = - D_q[1, 0] / (D_q[1, 1] + D_q[1, 2])
         if deformation_mode == 'undrained':
-            d_sigma_q, d_sigma_c, d_epsilon = compute_stress_increment([ratio])
+            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([ratio])
         elif deformation_mode == 'drained':
             solution = root(servo_control, ratio)
             ratio = solution.x
-            d_sigma_q, d_sigma_c, d_epsilon = compute_stress_increment(ratio)
+            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment(ratio)
         
         sigma_q += d_sigma_q
         sigma_c += d_sigma_c
-        sigma = sigma_q + sigma_c # + d_p_c[i + 1] * np.array([1., 1., 1., 0, 0, 0]) + d_p_c[i + 1] * M_c * de_q_direction
-        epsilon += d_epsilon  # + 1. / 3 * de_v_c * np.array([1., 1., 1., 0, 0, 0])
+        sigma = sigma_q + sigma_c
+        epsilon += d_epsilon
     
         # Update stress invariants
         p_total[i + 1] = np.sum(sigma[:3]) / 3.0
@@ -362,6 +398,8 @@ for k, accel_time in enumerate(accel_times):
         ev[i + 1] = np.sum(epsilon[:3])
         epsilon_s = epsilon - np.array([1, 1, 1, 0, 0, 0]) * ev[i + 1]
         eq[i + 1] = np.sqrt(2. / 3. * epsilon_s.dot(epsilon_s))
+        ev_cp[i + 1] = ev_cp[i] + de_v_c
+        ev_qp[i + 1] = ev_qp[i] + de_v_p
     
         p[i + 1] = np.sum(sigma_q[:3]) / 3.0
         p_q_s = sigma_q - np.array([1., 1., 1., 0, 0, 0]) * p[i + 1]
@@ -531,15 +569,15 @@ for k, accel_time in enumerate(accel_times):
 fig_load_history, ax_load = plt.subplots()
 fig_p_q, ax_p_q = plt.subplots(figsize=figsize)
 fig_e_p, ax_e_p = plt.subplots(figsize=figsize)
-fig_gamma, ax_gamma = plt.subplots(figsize=figsize)
-fig_phi, ax_phi = plt.subplots(figsize=figsize)
+fig_mu, ax_mu = plt.subplots(figsize=figsize)
+fig_void, ax_void = plt.subplots(figsize=figsize)
 for k, (p_total, q_total, void_ratio_total,
         p, q, void_ratio_q,
         p_c, q_c,
-        accel_time) in enumerate(list(zip(p_total_list, q_total_list, void_ratio_total_list,
+        accel_time) in enumerate(reversed(list(zip(p_total_list, q_total_list, void_ratio_total_list,
                                                p_list, q_list, void_ratio_q_list,
                                                p_c_list, q_c_list,
-                                               accel_times))):
+                                               accel_times)))):
     alpha = (1 - k / max(n_runs - 1, 1)) * 0.7
     color_qs    = lighten('b', alpha)   # quasi-static curves
     color_csl   = 'r'                   # critical state line
@@ -574,8 +612,8 @@ for k, (p_total, q_total, void_ratio_total,
     gamma_dot = eqp_inc_history/dt
     plot_gamma_mu(gamma_dot, q/p, label, color_qs, points)
     # plot_gamma_mu(gamma_dot, q_total/p_total, label, color_load, points)
-    plot_phi_gamma(void_ratio_q, gamma_dot, label, color_qs, points)
-    # plot_phi_gamma(void_ratio_total, gamma_dot, label, color_load, points)
+    plot_gamma_e(void_ratio_q, gamma_dot, label, color_qs, points)
+    # plot_gamma_e(void_ratio_total, gamma_dot, label, color_load, points)
 
 x_min, x_max = ax_p_q.get_xlim()
 y_min, y_max = ax_p_q.get_ylim()
@@ -592,20 +630,27 @@ ax_e_p.plot(p_line, eCSL, '-', color=color_csl, label='Critical state line', zor
 ax_e_p.set_xlim(x_min, x_max)
 ax_e_p.legend()
 # Dilatancy relation in gamma phi
-x_min, x_max = ax_phi.get_xlim()
+x_min, x_max = ax_void.get_xlim()
 gamma_line = np.linspace(x_min, x_max, 100)
-dilatancy_line = 1/(1 + void_ratio_q_list[0][point1]) - Delta_Phi * gamma_line
-ax_phi.plot(gamma_line, dilatancy_line, color=color_csl, label='Rate-induced dilatancy', zorder=0)
-ax_phi.set_xlim(x_min, x_max)
-ax_phi.legend()
+dilatancy_line = 1.0/(1.0 + void_ratio_q_list[0][point1]) - Delta_Phi * gamma_line
+ax_void.plot(gamma_line, (1.0 - dilatancy_line) / dilatancy_line, color=color_csl, label='Rate-induced dilatancy', zorder=0)
+ax_void.set_xlim(x_min, x_max)
+ax_void.legend()
 # Bulk friction in gamma mu
-ax_gamma.plot(gamma_line, np.ones(100) * M, color=color_csl, label=r'$\mu^{\mathrm{cs}}$', zorder=0)
-ax_gamma.set_xlim(x_min, x_max)
-ax_gamma.legend()
+ax_mu.plot(gamma_line, np.ones(100) * M, color=color_csl, label=r'$\mu^{\mathrm{cs}}$', zorder=0)
+ax_mu.set_xlim(x_min, x_max)
+ax_mu.legend()
+
+# Expand y-limits once at the end so numeric annotations stay inside the axes
+expand_ylim_for_annotations(ax_load, top_frac=0.05)
+expand_ylim_for_annotations(ax_p_q, top_frac=0.3)
+expand_ylim_for_annotations(ax_e_p)
+expand_ylim_for_annotations(ax_mu, top_frac=0.05, bottom_frac=0.05)
+expand_ylim_for_annotations(ax_void, top_frac=0.3)
 
 fig_load_history.savefig(f"{deformation_mode}_load_history.png", dpi=300, bbox_inches="tight")
 fig_p_q.savefig(f"{deformation_mode}_p_vs_q_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
 fig_e_p.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
-fig_gamma.savefig(f"{deformation_mode}_gamma_vs_mu_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
-fig_phi.savefig(f"{deformation_mode}_gamma_vs_phi_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+fig_mu.savefig(f"{deformation_mode}_gamma_vs_mu_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
+fig_void.savefig(f"{deformation_mode}_gamma_vs_phi_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
 plt.show()

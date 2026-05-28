@@ -215,8 +215,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
         if d_eqp_inc_mag != 0:
             # Get the deviatoric part of the acceleration rate tensor ?
             Phi = 1.0 / (1.0 + void_ratio_total[i])
-            Phi_c = 1.0 / (1.0 + void_ratio_cp[i])
-            de_v_c = - Phi / Phi_c ** 2 * Delta_Phi * d_eqp_inc_eff
+            de_v_c = - Phi / Phi ** 2 * Delta_Phi * d_eqp_inc_eff
             # d_p_c[i + 1] = p[i] / ((lambda_val - kappa) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff
             d_p_c[i + 1] = p[i] / ((lambda_val - 0) * Phi ** 2) * Delta_Phi * d_eqp_inc_eff
 
