@@ -18,7 +18,7 @@ def get_deviatoric_strain(tensor):
     eps_dev = tensor - np.array([eps_v/3., eps_v/3., eps_v/3., 0., 0., 0.])
     dev_contract = (
         eps_dev[0]**2 + eps_dev[1]**2 + eps_dev[2]**2
-        + 2.0*(eps_dev[3]**2 + eps_dev[4]**2 + eps_dev[5]**2)
+        + 0.5 * (eps_dev[3]**2 + eps_dev[4]**2 + eps_dev[5]**2)
     )
     eps_q = np.sqrt(2.0/3.0 * dev_contract)
     direction = eps_dev / eps_q if eps_q > 0.0 else np.zeros_like(tensor)
@@ -106,7 +106,7 @@ def plot_gamma_mu(xg, yg, label, color_total, points):
         else:
             mfc = 'none'
         ax_mu.plot(xg[p_i], yg[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
-    ax_mu.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
+    ax_mu.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
     ax_mu.set_ylabel(mu_label)
     ax_mu.legend()
 
@@ -120,7 +120,7 @@ def plot_gamma_e(void_ratio, xg, label, color_total, points):
         else:
             mfc = 'none'
         ax_void.plot(xg[p_i], void_ratio[p_i], marker=m_i, color=color_total, ms=10, mfc=mfc)
-    ax_void.set_xlabel(r'Axial strain rate $\dot{\varepsilon}_{zz}$ [1/s]')
+    ax_void.set_xlabel(r'Shear rate $\dot{\gamma}$ [1/s]')
     ax_void.set_ylabel(r'Void ratio $e$')
     ax_void.legend()
 
@@ -151,7 +151,7 @@ Delta_Phi = 0.025
 M_c = 1.5
 
 # Time needed to accelerate or decelerate
-accel_times = [0.01, 0.1, 1.0]
+accel_times = [0.02, 0.1, 0.5]
 total_time = 2.5
 n_runs = len(accel_times)
 
@@ -164,6 +164,10 @@ q_list = []
 void_ratio_q_list = []
 p_c_list = []
 q_c_list = []
+eq_list = []
+ev_list = []
+ev_cp_list = []
+ev_qp_list = []
 
 # Set figure size for half-width of A4
 a4_half_width = 6  # in inches
@@ -425,6 +429,10 @@ for k, accel_time in enumerate(accel_times):
     void_ratio_q_list.append(void_ratio_q)
     p_c_list.append(p_c)
     q_c_list.append(q_c)    
+    eq_list.append(eq)
+    ev_list.append(ev)
+    ev_cp_list.append(ev_cp)
+    ev_qp_list.append(ev_qp)
 
     # Display results
     plt.figure('Pressure controlled simple shear')
@@ -574,9 +582,11 @@ fig_void, ax_void = plt.subplots(figsize=figsize)
 for k, (p_total, q_total, void_ratio_total,
         p, q, void_ratio_q,
         p_c, q_c,
+        eq, ev, ev_cp, ev_qp,
         accel_time) in enumerate(reversed(list(zip(p_total_list, q_total_list, void_ratio_total_list,
                                                p_list, q_list, void_ratio_q_list,
                                                p_c_list, q_c_list,
+                                               eq_list, ev_list, ev_cp_list, ev_qp_list,
                                                accel_times)))):
     alpha = (1 - k / max(n_runs - 1, 1)) * 0.7
     color_qs    = lighten('b', alpha)   # quasi-static curves
@@ -609,7 +619,8 @@ for k, (p_total, q_total, void_ratio_total,
     # plot_p_q(p_total, q_total, label, color_load, points)
     plot_e_p(p, void_ratio_q, label, color_qs, points)
     # plot_e_p(p_total, void_ratio_total, label, color_load, points)
-    gamma_dot = eqp_inc_history/dt
+    gamma_dot = (eq[1:] - eq[:-1]) / dt
+    gamma_dot = np.insert(gamma_dot, 0, 0)
     plot_gamma_mu(gamma_dot, q/p, label, color_qs, points)
     # plot_gamma_mu(gamma_dot, q_total/p_total, label, color_load, points)
     plot_gamma_e(void_ratio_q, gamma_dot, label, color_qs, points)

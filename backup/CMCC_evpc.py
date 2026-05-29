@@ -17,7 +17,7 @@ def get_deviatoric_strain(tensor):
     eps_dev = tensor - np.array([eps_v/3., eps_v/3., eps_v/3., 0., 0., 0.])
     dev_contract = (
         eps_dev[0]**2 + eps_dev[1]**2 + eps_dev[2]**2
-        + 2.0*(eps_dev[3]**2 + eps_dev[4]**2 + eps_dev[5]**2)
+        + 0.5 * (eps_dev[3]**2 + eps_dev[4]**2 + eps_dev[5]**2)
     )
     eps_q = np.sqrt(2.0/3.0 * dev_contract)
     direction = eps_dev / eps_q if eps_q > 0.0 else np.zeros_like(tensor)
