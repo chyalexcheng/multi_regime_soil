@@ -7,6 +7,18 @@ from matplotlib import cm
 
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
+rcParams['font.size'] = 14
+plt.rcParams.update({
+    "axes.grid": True,
+    "grid.linestyle": "--",
+    "grid.linewidth": 0.7,
+})
+
+# Set figure size for half-width of A4
+a4_half_width = 6  # in inches
+fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
+fig_height = a4_half_width / fig_aspect_ratio
+figsize = (a4_half_width, fig_height)
 
 # Cam-clay critical state parameters
 pc_0_list = np.array([150.0, 300, 450])  # 'Initial consolidation pressure [kPa]'
@@ -22,6 +34,7 @@ V_list = N - (lambda_val * np.log(p0_list)) + (kappa * np.log(pc_0_list / p0_lis
 void_ratio_0_list = V_list - 1  # Initial void ratio
 Phi_0_list = 1.0 / (1.0 + void_ratio_0_list)  # Initial solid volume fraction
 deformation_mode = input('Enter the deformation mode: [1] drained and [2] undrained\n')
+use_saved_data = input('Use saved data? [y/n]\n').lower() == 'y'
 
 # Maximum shear strain and number of load steps for the quasi-static stage
 eqp_tot = 100.0  # [%] 'total plastic shear strain'
@@ -57,25 +70,45 @@ plt.savefig(f"load_history_mu_I_compare.png", dpi=300, bbox_inches="tight")
 
 # Full text long labels
 time_label = r'Time ($t$) [s]'
-mu_label = r'Ratio of deviatoric stress to pressure $q/p$ [-]'
+mu_label = r'Stress ratio $q/p$ [-]'
 pressure_label = r'Pressure $p$ [kPa]'
 dev_stress_label = r'Deviatoric stress $q$ [kPa]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
 preconsolidation_p_label = 'Pre-consolidation stress [kPa]'
-p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
+p_ratio_label = r'Ratio of dynamic and quasi-static stresses [-]'
 e_label = r'Void ratio $e$ [-]'
 
 # collect output per initial condition
-p_total_list = []
-q_total_list = []
-void_ratio_total_list = []
-p_list = []
-q_list = []
-void_ratio_q_list = []
-p_c_list = []
-q_c_list = []
+if use_saved_data:
+    (p_total_list,
+     q_total_list,
+     void_ratio_total_list,
+     p_list,
+     q_list,
+     void_ratio_q_list,
+     p_c_list,
+     q_c_list) = np.load(f'{deformation_mode}_steady_state.npy', allow_pickle=False)
+    d_gamma_history = np.load(f'{deformation_mode}_d_gamma_history.npy', allow_pickle=False)
+    points = np.arange(np.asarray(p_total_list).shape[1])
+    eqp_inc_history = d_gamma_history * dt
+    load_length = eqp_inc_history.shape[0]
+    # keep legacy file-name variables available in the post-processing section
+    void_ratio_0 = void_ratio_0_list[-1]
+    OCR = pc_0_list[-1] / p0_list[-1]
+    p0 = p0_list[-1]
+else:
+    p_total_list = []
+    q_total_list = []
+    void_ratio_total_list = []
+    p_list = []
+    q_list = []
+    void_ratio_q_list = []
+    p_c_list = []
+    q_c_list = []
 
-for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_ratio_0_list, Phi_0_list):
+sim_cases = zip(pc_0_list, p0_list, V_list, void_ratio_0_list, Phi_0_list) if not use_saved_data else []
+
+for pc_0, p0, V, void_ratio_0, Phi_0 in sim_cases:
     # Declarations
     void_ratio_total = np.zeros(load_length)
     void_ratio_q = np.zeros(load_length)
@@ -120,7 +153,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_rat
     
         # Stiffness matrix and strain increment vector and derivatives of the yield function
         De = np.zeros([6, 6])
-        # TODO: HC: check if the stiffness matrix for collisional stress increments can be formulated like elasticity
+        # TODO: HC: check if the stiffness matrix for dynamic stress increments can be formulated like elasticity
         D_c = np.zeros([6, 6])
         df_ds = np.zeros([6, 1])
         df_dep = np.zeros([6, 1])
@@ -196,7 +229,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_rat
             de_q_norm = np.sqrt(2. / 3. * de_q.dot(de_q))
             de_q_direction = de_q / de_q_norm
     
-            # Calculate collisional stress
+            # Calculate dynamic stress
             if d_eqp_inc != 0:
                 # Get sign of the acceleration rate, positive: accelerate; negative decelerate.
                 # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
@@ -279,12 +312,6 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_rat
 
     #%% Individual production plots
     
-    # Set figure size for half-width of A4
-    a4_half_width = 6  # in inches
-    fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
-    fig_height = a4_half_width / fig_aspect_ratio
-    figsize = (a4_half_width, fig_height)
-    
     # Pressure vs. Time
     plt.figure(figsize=figsize)
     plt.plot(np.arange(load_length) * dt, p, '-b', label=r"Quasi-static pressure ($p^{\mathrm{q}}$)")
@@ -338,7 +365,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_rat
     plt.ylabel(preconsolidation_p_label)
     plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png", dpi=300, bbox_inches="tight")
     
-    # Ratio between collisional and quasistatic stress vs. Time
+    # Ratio between dynamic and quasistatic stress vs. Time
     plt.figure(figsize=figsize)
     plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-b', label=r'Pressures ($p^{\mathrm{c}}/p^{\mathrm{q}}$)')
     plt.plot(0 * dt, p_c[1] / p[1], 'b.', ms=10, label='')
@@ -408,16 +435,27 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in zip(pc_0_list, p0_list, V_list, void_rat
     plt.savefig(f"{deformation_mode}_e_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png", dpi=300, bbox_inches="tight")
 
 # save the stead-state data into npy file.
-np.save(f'{deformation_mode}_steady_state.npy',
-        (np.array(p_total_list)[:, points],
-         np.array(q_total_list)[:, points],
-         np.array(void_ratio_total_list)[:, points],
-         np.array(p_list)[:, points],
-         np.array(q_list)[:, points],
-         np.array(void_ratio_q_list)[:, points],
-         np.array(p_c_list)[:, points],
-         np.array(q_c_list)[:, points]))
-np.save(f'{deformation_mode}_d_gamma_history.npy', eqp_inc_history[points] / dt)
+if not use_saved_data:
+    np.save(f'{deformation_mode}_steady_state.npy',
+            (np.array(p_total_list)[:, points],
+             np.array(q_total_list)[:, points],
+             np.array(void_ratio_total_list)[:, points],
+             np.array(p_list)[:, points],
+             np.array(q_list)[:, points],
+             np.array(void_ratio_q_list)[:, points],
+             np.array(p_c_list)[:, points],
+             np.array(q_c_list)[:, points]))
+    np.save(f'{deformation_mode}_d_gamma_history.npy', eqp_inc_history[points] / dt)
+
+# Ensure post-processing works for both run-mode lists and load-mode arrays
+p_total_list = np.asarray(p_total_list)
+q_total_list = np.asarray(q_total_list)
+void_ratio_total_list = np.asarray(void_ratio_total_list)
+p_list = np.asarray(p_list)
+q_list = np.asarray(q_list)
+void_ratio_q_list = np.asarray(void_ratio_q_list)
+p_c_list = np.asarray(p_c_list)
+q_c_list = np.asarray(q_c_list)
 
 # mu(I) and phi(I) fit to the data
 
@@ -461,16 +499,22 @@ mu_phi_I_fit = True
 plt.figure(figsize=figsize)
 for idx, (p0, q_total, p_total) in enumerate(zip(p0_list, q_total_list, p_total_list)):
     color = colors[idx]
-    inertia_number = (
+    inertia_number_all = (
         eqp_inc_history[points] / dt * particle_diameter /
         np.sqrt(p0 * 1e3 / particle_density)
     )
+    mu_all = (q_total / p_total)[points]
+    valid_p = p_total[points] > 1e-6
 
-    plt.semilogx(inertia_number, (q_total / p_total)[points],
+    plt.semilogx(inertia_number_all[valid_p], mu_all[valid_p],
                  label=f'$p_0 = {p0:.0f}$ kPa', color=color, zorder=3, linewidth=1.5)
 
+    # select indices from inertial number small than 5e-4 for fitting
+    valid_idx = (inertia_number_all < 5e-4) & valid_p
+
     if mu_phi_I_fit:
-        mu_val = (q_total / p_total)[points]
+        mu_val = mu_all[valid_idx]
+        inertia_number = inertia_number_all[valid_idx]
         popt, pcov = curve_fit(
             mu_I_classic,
             inertia_number, mu_val,
@@ -483,16 +527,17 @@ for idx, (p0, q_total, p_total) in enumerate(zip(p0_list, q_total_list, p_total_
         print(f'I_0 = {popt[-1]}, mu_c = {popt[0]}')
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
-        idx = (np.abs(shear_rate - 1.0)).argmin()  # closest to shear rate = 1.0
-        plt.plot(inertia_number[idx], (q_total / p_total)[points][idx],
+        idx_star = (np.abs(shear_rate - 1.0)).argmin()  # closest to shear rate = 1.0
+        if valid_p[idx_star]:
+            plt.plot(inertia_number_all[idx_star], mu_all[idx_star],
                  marker='*', color=color, markersize=12, zorder=4, label='', mfc='none')
 
 plt.xlabel(r'Inertial number $I$ [-]')
 plt.ylabel(mu_label)
-plt.xlim(1e-6)
-plt.ylim(min((q_total_list/p_total_list).flatten()) * 0.98, max((q_total_list/p_total_list).flatten()) * 1.02)
+plt.xlim(1e-6, 2e-3)
+plt.ylim(min(mu_all) * 0.98, max(mu_all) * 1.02)
 plt.axhline(1.0, color='red', linestyle='--', label=r'$\mu^{\mathrm{cs}}$')
-plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{c}}$')
+plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{d}}$')
 plt.legend()
 plt.savefig(f"{deformation_mode}_mu_gamma_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png",
             dpi=300, bbox_inches="tight")
@@ -506,10 +551,17 @@ for idx, (p0, void_ratio_total) in enumerate(zip(p0_list, void_ratio_total_list)
         np.sqrt(p0 * 1e3 / particle_density)
     )
     phi_val = 1.0 / (1.0 + void_ratio_total[points])
+    # remove invalid phi values < 0.2 or > initial phi
+    phi_val = np.where((phi_val < 0.2) | (phi_val > phi_val[0]), np.nan, phi_val)
     plt.semilogx(inertia_number, phi_val,
                  label=f'$p_0 = {p0:.0f}$ kPa', color=color, zorder=3, linewidth=1.5)
 
+    # select indices from inertial number small than 5e-4 for fitting
+    valid_idx = inertia_number < 5e-4
+
     if mu_phi_I_fit:
+        phi_val = phi_val[valid_idx]
+        inertia_number = inertia_number[valid_idx]
         result_phi = least_squares(phi_residuals, x0=[5.4, 0.3],
                                    args=(inertia_number, phi_val, p0))
         fitted_phi = phi_fit_func(I_fit, *np.append(result_phi.x, phi_val[0]), p0)
@@ -518,14 +570,13 @@ for idx, (p0, void_ratio_total) in enumerate(zip(p0_list, void_ratio_total_list)
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
         idx = (np.abs(shear_rate - 1.0)).argmin()  # closest to shear rate = 1.0
-        plt.plot(inertia_number[idx], (phi_val)[points][idx],
+        plt.plot(inertia_number[idx], (phi_val)[idx],
                  marker='*', color=color, markersize=12, zorder=4, label='', mfc='none')
 
 plt.xlabel(r'Inertial number $I$ [-]')
 plt.ylabel(r'Solid volume fraction $\phi$ [-]')
-plt.xlim(1e-6)
-phi_q = 1.0 / (1.0 + void_ratio_total_list)
-plt.ylim(min(phi_q.flatten()) * 0.98, max(phi_q.flatten()) * 1.02)
+plt.xlim(1e-6, 2e-3)
+plt.ylim(0.4, 0.9)
 plt.legend()
 plt.savefig(f"{deformation_mode}_phi_gamma_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png",
             dpi=300, bbox_inches="tight")
@@ -536,11 +587,7 @@ plt.show()
 plt.figure(figsize=figsize)
 for idx, (p0, void_ratio_q) in enumerate(zip(p0_list, void_ratio_q_list)):
     color = colors[idx]
-    plt.plot(eqp_inc_history[points] / dt, 1.0 / (1.0 + void_ratio_q[points]), label=f'$p_0 = {p0:.0f}$ kPa', color=color)
-#    ax = plt.gca()
-#    color = ax.get_lines()[-1].get_color()
-#    plt.plot(eqp_inc_history[points[0]] / dt, 1.0 / (1.0 + void_ratio_q[points[0]]), '.', color=color, ms=10, label='')
-#    plt.plot(eqp_inc_history[points[-1]] / dt, 1.0 / (1.0 + void_ratio_q[points[-1]]), 'x', color=color, ms=10, label='')
+    plt.plot(eqp_inc_history[points] / dt, 1.0 / (1.0 + void_ratio_q[points]), label=r'$p_0 = {p0:.0f}$ kPa', color=color)
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
         idx = (np.abs(shear_rate - 1.0)).argmin()  # closest to shear rate = 1.0
@@ -552,7 +599,7 @@ plt.xlim(0,10)
 plt.legend()
 plt.savefig(f"{deformation_mode}_phi_q_gamma_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png", dpi=300, bbox_inches="tight")
 
-# Gamma dot vs. (\lambda-\kappa)\phi_q**2/Delta_Phi for unified and I_0/d*\sqrt(p_0/rho) + \dot{\gamma} for mu(I)
+# Gamma dot vs. (\lambda)\phi_q**2/Delta_Phi for unified and I_0/d*\sqrt(p_0/rho) + \dot{\gamma} for mu(I)
 plt.figure(figsize=figsize)
 for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_list)):
     color = colors[idx]
@@ -562,7 +609,7 @@ for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_li
     ax = plt.gca()
     color = ax.get_lines()[-1].get_color()
     p_c_rate_mu_I = p_c_rate[0] + eqp_inc_history[points] / dt
-    plt.semilogy(eqp_inc_history[points] / dt, p_c_rate_mu_I, '--', color=color, label=f'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
+    plt.semilogy(eqp_inc_history[points] / dt, p_c_rate_mu_I, '--', color=color, label=r'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate_mu_I[-1], 'x', color=color, ms=10, label='')
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
@@ -577,7 +624,7 @@ plt.xlim(0,10)
 plt.legend()
 plt.savefig(f"{deformation_mode}_f_gamma_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png", dpi=300, bbox_inches="tight")
 
-# Gamma dot vs. p_q / ((\lambda-\kappa)\phi_q**2/Delta_Phi) for unified and p_q / (I_0/d*\sqrt(p_0/rho) + \dot{\gamma}) for mu(I)
+# Gamma dot vs. p_q / ((\lambda)\phi_q**2/Delta_Phi) for unified and p_q / (I_0/d*\sqrt(p_0/rho) + \dot{\gamma}) for mu(I)
 plt.figure(figsize=figsize)
 for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_list)):
     color = colors[idx]
@@ -590,7 +637,7 @@ for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_li
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate[-1], 'x', color=color, ms=10, label='')
     p_c_rate_mu_I = p[points] / (p[0]/p_c_rate[0] + eqp_inc_history[points] / dt)
     print(f'scaled I_0 = {p[0]*1e3/p_c_rate[0] * particle_diameter * np.sqrt(p0 *1e3/particle_density)}')
-    plt.semilogy(eqp_inc_history[points] / dt, M_c*p_c_rate_mu_I, '--', color=color, label=f'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
+    plt.semilogy(eqp_inc_history[points] / dt, M_c*p_c_rate_mu_I, '--', color=color, label=r'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate_mu_I[-1], 'x', color=color, ms=10, label='')
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
