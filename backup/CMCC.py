@@ -223,7 +223,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
         # Keep acceleration/deceleration sign convention from loading-history increment.
         d_eqp_inc_eff = np.sign(d_eqp_inc) * d_eqp_inc_mag
 
-        # Calculate collisional stress
+        # Calculate dynamic stress
         if d_eqp_inc_mag != 0 and de_v_c != 0:
             # Get the deviatoric part of the acceleration rate tensor ?
             Phi = 1.0 / (1.0 + void_ratio_total[i])
@@ -239,7 +239,7 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             K_c = 0
             G_c = 0
 
-        # Get collisional stress-induced plastic strain increment
+        # Get dynamic stress-induced plastic strain increment
         d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
         
         # Get quasi-static stress induced plastic volumetric strain increment
@@ -326,7 +326,7 @@ pressure_label = r'Pressure $p$ [kPa]'
 dev_stress_label = r'Deviatoric stress $q$ [kPa]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
 preconsolidation_p_label = 'Pre-consolidation pressure [kPa]'
-p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
+p_ratio_label = r'Ratio of dynamic and quasi-static stresses [-]'
 e_label = r'Void ratio $e$ [-]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
 
@@ -401,7 +401,7 @@ plt.plot(load_length * dt, pc_history[-1], 'b.', ms=10, label='')
 plt.xlabel(ctime)
 plt.ylabel(cppc)
 
-# collisional stress (iso) vs. time
+# dynamic stress (iso) vs. time
 plt.subplot(2, 4, 5)
 plt.plot(np.arange(load_length) * dt, p_c / p, '-b')
 # begin and endpoints
@@ -552,7 +552,7 @@ plt.xlabel(time_label)
 plt.ylabel(preconsolidation_p_label)
 plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.png", dpi=300, bbox_inches="tight")
 
-# Ratio between collisional and quasistatic stress vs. Time
+# Ratio between dynamic and quasistatic stress vs. Time
 plt.figure(figsize=figsize)
 plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-c', label=r'Pressures ($p^{\mathrm{d}}/p^{\mathrm{q}}$)')
 plt.plot(0 * dt, p_c[1] / p[1], 'c.', ms=10, label='')

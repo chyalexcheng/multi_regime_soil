@@ -287,7 +287,7 @@ for k, accel_time in enumerate(accel_times):
                     else:
                         De[m, n] = 0
 
-        def get_collisional_stiffness(K_c, G_c):
+        def get_dynamic_stiffness(K_c, G_c):
             D_c = np.zeros([6, 6])
             De_c = np.zeros([6, 6])
             for m in range(6):
@@ -339,7 +339,7 @@ for k, accel_time in enumerate(accel_times):
             # Keep acceleration/deceleration sign convention from loading-history increment.
             d_eqp_inc_eff = np.sign(d_eqp_inc) * d_eqp_inc_mag
 
-            # Calculate collisional stress
+            # Calculate dynamic stress
             if d_eqp_inc_mag != 0:
                 # Get the deviatoric part of the acceleration rate tensor ?
                 Phi = 1.0 / (1.0 + void_ratio_total[i])
@@ -356,9 +356,9 @@ for k, accel_time in enumerate(accel_times):
                 K_c = 0
                 G_c = 0
 
-            # Get collisional stiffness matrices
-            D_c, De_c = get_collisional_stiffness(K_c, G_c)
-            # Get collisional stress-induced plastic strain increment
+            # Get dynamic stiffness matrices
+            D_c, De_c = get_dynamic_stiffness(K_c, G_c)
+            # Get dynamic stress-induced plastic strain increment
             d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
             
             # Get quasi-static stress induced plastic volumetric strain increment
@@ -554,7 +554,7 @@ for k, accel_time in enumerate(accel_times):
     dev_stress_label = r'Deviatoric stress $q$ [kPa]'
     ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
     preconsolidation_p_label = 'Pre-consolidation pressure [kPa]'
-    p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
+    p_ratio_label = r'Ratio of dynamic and quasi-static stresses [-]'
     e_label = r'Void ratio $e$ [-]'
     ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
     
@@ -629,7 +629,7 @@ for k, accel_time in enumerate(accel_times):
     plt.xlabel(ctime)
     plt.ylabel(cppc)
     
-    # collisional stress (iso) vs. time
+    # dynamic stress (iso) vs. time
     plt.subplot(2, 4, 5)
     plt.plot(np.arange(load_length) * dt, p_c / p, '-b')
     # begin and endpoints

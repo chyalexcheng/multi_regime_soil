@@ -14,6 +14,12 @@ plt.rcParams.update({
     "grid.linewidth": 0.7,
 })
 
+# Set figure size for half-width of A4
+a4_half_width = 6  # in inches
+fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
+fig_height = a4_half_width / fig_aspect_ratio
+figsize = (a4_half_width, fig_height)
+
 # Cam-clay critical state parameters
 pc_0_list = np.array([150.0, 300, 450])  # 'Initial consolidation pressure [kPa]'
 M = 1.0  # 'Critical friction angle'
@@ -69,7 +75,7 @@ pressure_label = r'Pressure $p$ [kPa]'
 dev_stress_label = r'Deviatoric stress $q$ [kPa]'
 ev_label = r'Volumetric strain $\varepsilon_v$ [-]'
 preconsolidation_p_label = 'Pre-consolidation stress [kPa]'
-p_ratio_label = r'Ratio of collisional and quasi-static stresses [-]'
+p_ratio_label = r'Ratio of dynamic and quasi-static stresses [-]'
 e_label = r'Void ratio $e$ [-]'
 
 # collect output per initial condition
@@ -147,7 +153,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in sim_cases:
     
         # Stiffness matrix and strain increment vector and derivatives of the yield function
         De = np.zeros([6, 6])
-        # TODO: HC: check if the stiffness matrix for collisional stress increments can be formulated like elasticity
+        # TODO: HC: check if the stiffness matrix for dynamic stress increments can be formulated like elasticity
         D_c = np.zeros([6, 6])
         df_ds = np.zeros([6, 1])
         df_dep = np.zeros([6, 1])
@@ -223,7 +229,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in sim_cases:
             de_q_norm = np.sqrt(2. / 3. * de_q.dot(de_q))
             de_q_direction = de_q / de_q_norm
     
-            # Calculate collisional stress
+            # Calculate dynamic stress
             if d_eqp_inc != 0:
                 # Get sign of the acceleration rate, positive: accelerate; negative decelerate.
                 # Now simplified as sign(d_eqp_inc). Should have been the sign between de_q_direction and e_q_direction tensors
@@ -306,12 +312,6 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in sim_cases:
 
     #%% Individual production plots
     
-    # Set figure size for half-width of A4
-    a4_half_width = 6  # in inches
-    fig_aspect_ratio = 4 / 3  # width-to-height ratio (adjust as needed)
-    fig_height = a4_half_width / fig_aspect_ratio
-    figsize = (a4_half_width, fig_height)
-    
     # Pressure vs. Time
     plt.figure(figsize=figsize)
     plt.plot(np.arange(load_length) * dt, p, '-b', label=r"Quasi-static pressure ($p^{\mathrm{q}}$)")
@@ -365,7 +365,7 @@ for pc_0, p0, V, void_ratio_0, Phi_0 in sim_cases:
     plt.ylabel(preconsolidation_p_label)
     plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}_{p0}.png", dpi=300, bbox_inches="tight")
     
-    # Ratio between collisional and quasistatic stress vs. Time
+    # Ratio between dynamic and quasistatic stress vs. Time
     plt.figure(figsize=figsize)
     plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-b', label=r'Pressures ($p^{\mathrm{c}}/p^{\mathrm{q}}$)')
     plt.plot(0 * dt, p_c[1] / p[1], 'b.', ms=10, label='')
@@ -587,7 +587,7 @@ plt.show()
 plt.figure(figsize=figsize)
 for idx, (p0, void_ratio_q) in enumerate(zip(p0_list, void_ratio_q_list)):
     color = colors[idx]
-    plt.plot(eqp_inc_history[points] / dt, 1.0 / (1.0 + void_ratio_q[points]), label=f'$p_0 = {p0:.0f}$ kPa', color=color)
+    plt.plot(eqp_inc_history[points] / dt, 1.0 / (1.0 + void_ratio_q[points]), label=r'$p_0 = {p0:.0f}$ kPa', color=color)
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
         idx = (np.abs(shear_rate - 1.0)).argmin()  # closest to shear rate = 1.0
@@ -609,7 +609,7 @@ for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_li
     ax = plt.gca()
     color = ax.get_lines()[-1].get_color()
     p_c_rate_mu_I = p_c_rate[0] + eqp_inc_history[points] / dt
-    plt.semilogy(eqp_inc_history[points] / dt, p_c_rate_mu_I, '--', color=color, label=f'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
+    plt.semilogy(eqp_inc_history[points] / dt, p_c_rate_mu_I, '--', color=color, label=r'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate_mu_I[-1], 'x', color=color, ms=10, label='')
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
@@ -637,7 +637,7 @@ for idx, (p0, p, void_ratio_q) in enumerate(zip(p0_list, p_list, void_ratio_q_li
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate[-1], 'x', color=color, ms=10, label='')
     p_c_rate_mu_I = p[points] / (p[0]/p_c_rate[0] + eqp_inc_history[points] / dt)
     print(f'scaled I_0 = {p[0]*1e3/p_c_rate[0] * particle_diameter * np.sqrt(p0 *1e3/particle_density)}')
-    plt.semilogy(eqp_inc_history[points] / dt, M_c*p_c_rate_mu_I, '--', color=color, label=f'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
+    plt.semilogy(eqp_inc_history[points] / dt, M_c*p_c_rate_mu_I, '--', color=color, label=r'$p_0 = {p0:.0f}$ kPa ($\mu(I)$)')
     #plt.semilogy(eqp_inc_history[points[-1]] / dt, p_c_rate_mu_I[-1], 'x', color=color, ms=10, label='')
     if int(p0) == 150:
         shear_rate = eqp_inc_history[points] / dt
