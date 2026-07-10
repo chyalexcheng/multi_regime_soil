@@ -1,4 +1,4 @@
-# Multi-regime MCC + Collisional Stress Model
+# Collision-driven Modified Cam-Clay Model for transient dense granular flows
 
 This folder contains a modular re-implementation of the Modified Cam-Clay (MCC)
 + dynamic stress constitutive model used to simulate triaxial shear tests.
