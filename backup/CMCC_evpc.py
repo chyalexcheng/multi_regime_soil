@@ -1,7 +1,6 @@
 # encoding: utf-8
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import root 
 from matplotlib import rcParams
 rcParams['mathtext.fontset'] = 'cm'
 rcParams['font.family'] = 'serif'
@@ -67,7 +66,6 @@ markers = ['^', '>', 'v', '<']
 load_length = eqp_inc_history.shape[0]
 
 plt.figure('Load history')
-plt.plot([-10, 360], [0, 0], '--k')
 plt.plot(np.arange(load_length) * dt, eqp_inc_history / dt, '-k', label=rf'$|\ddot{{\varepsilon}}_{{zz}}| = 0.02$ s' + r'$^{-2}$')
 x_offset = load_length * dt * 0.03
 y_offset = max(eqp_inc_history) / dt * 0.03
@@ -128,13 +126,10 @@ yield_surf = (q[0] ** 2 / M ** 2 + p[0] ** 2) - p[0] * pc
 # Loadstep cycle pressure control shear
 for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
     # Acceleration increment
-    d_eqp_inc = eqp_inc - eqp_inc_history[i - 1] if i > 0 else 0
+    d_eqp_inc = eqp_inc_history[i + 1] - eqp_inc if i > 0 else 0
 
     # Stiffness matrix and strain increment vector and derivatives of the yield function
     De = np.zeros([6, 6])
-    # TODO: HC: check if the stiffness matrix for collisional stress increments can be formulated like elasticity
-    D_c = np.zeros([6, 6])
-    De_c = np.zeros([6, 6])
     df_ds = np.zeros([6, 1])
     df_dep = np.zeros([6, 1])
 
@@ -162,42 +157,55 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
                     df_dep[m, 0] = (-p[i]) * pc * (1 + void_ratio_q[i]) / (lambda_val - kappa) * 1
                 if m == n:
                     De[m, n] = K + 4 / 3 * G
-                    De_c[m, n] = K_c
-                    D_c[m, n] = 4 / 3 * G_c
                 elif n <= 2:
                     De[m, n] = K - 2 / 3 * G
-                    De_c[m, n] = K_c
-                    D_c[m, n] = - 2 / 3 * G_c
             if m > 2:
                 df_ds[m, 0] = 0
                 df_dep[m, 0] = 0
                 if m == n:
                     De[m, n] = G
-                    D_c[m, n] = G_c
                 else:
                     De[m, n] = 0
-                    D_c[m, n] = 0
 
-        # If the yield surface is negative, the stiffness matrix is elastic
-        if yield_surf < 0:
-            D_q = De
+    def get_collisional_stiffness(K_c, G_c):
+        D_c = np.zeros([6, 6])
+        De_c = np.zeros([6, 6])
+        for m in range(6):
+            for n in range(6):
+                if m <= 2:
+                    if m == n:
+                        D_c[m, n] = K_c + 4 / 3 * G_c
+                        De_c[m, n] = K_c
+                    elif n <= 2:
+                        D_c[m, n] = K_c - 2 / 3 * G_c
+                        De_c[m, n] = K_c
+                if m > 2:
+                    if m == n:
+                        D_c[m, n] = G_c
+                    else:
+                        D_c[m, n] = 0
+        return D_c, De_c
 
-        # If the yield surface is positive, the stiffness matrix is elastic-plastic
-        else:
-            D_q = De - (De.dot(df_ds).dot(df_ds.T).dot(De)) / (
-                    -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds))
+    # If the yield surface is negative, the stiffness matrix is elastic
+    if yield_surf < 0:
+        D_q = De
+
+    # If the yield surface is positive, the stiffness matrix is elastic-plastic
+    else:
+        D_q = De - (De.dot(df_ds).dot(df_ds.T).dot(De)) / (
+                -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds))
 
     def compute_stress_increment(args):
-        global K_c, G_c, de_v_c, de_q_direction, d_eqp_inc
-        ratio = args[0]
+        global K_c, G_c, de_v_c, d_epsilon_prev
+        ratio_1, ratio_2 = args
         # Fill the strain increment vector
         if deformation_mode == 'drained':
             # For drained (or pressure control) conditions
             d_epsilon = np.array(
-                [eqp_inc, ratio * eqp_inc, ratio * eqp_inc, 0., 0., 0.])
+                [eqp_inc, ratio_1 * eqp_inc, ratio_1 * eqp_inc, 0., 0., 0.])
             if d_eqp_inc != 0:
                 d_d_epsilon = np.array(
-                    [d_eqp_inc, ratio * d_eqp_inc, ratio * d_eqp_inc, 0., 0., 0.])
+                    [d_eqp_inc, ratio_2 * d_eqp_inc, ratio_2 * d_eqp_inc, 0., 0., 0.])
             else:
                 d_d_epsilon = np.array([0., 0., 0., 0., 0., 0.])
         elif deformation_mode == 'undrained':
@@ -228,6 +236,8 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
             K_c = 0
             G_c = 0
 
+        # Get collisional stiffness matrices
+        D_c, De_c = get_collisional_stiffness(K_c, G_c)
         # Get collisional stress-induced plastic strain increment
         d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
         
@@ -253,20 +263,146 @@ for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
 
         return d_sigma_q, d_sigma_c, d_epsilon, de_v_p
 
-    def servo_control(ratio):
-        d_sigma_q, d_sigma_c, _, _ = compute_stress_increment(ratio)
+    def servo_control(ratios):
+        ratio_1, ratio_2 = ratios
+        d_sigma_q, d_sigma_c, _, _ = compute_stress_increment([ratio_1, ratio_2])
         d_sigma = d_sigma_q + d_sigma_c
-        return abs(np.sum(d_sigma[:3]))
+        return np.sum(d_sigma[:3])
+
+    def advance_constant_mean_pressure(eqp_inc, p_target,
+                                        tolerance=1e-3,
+                                        max_iterations=100,
+                                        small_number=1e-14):
+        # No acceleration: ratio_2 has no effect on the result, so keep it equal to ratio_1.
+        denom = D_q[1, 1] + D_q[1, 2]
+        delta_eps_r = - D_q[1, 0] / denom * eqp_inc if np.abs(denom) > small_number else 0.0
+
+        for _ in range(max_iterations):
+            ratio_loc = delta_eps_r / eqp_inc if np.abs(eqp_inc) > small_number else 0.0
+            d_sigma_q_loc, d_sigma_c_loc, d_epsilon_loc, de_v_p_loc = compute_stress_increment([ratio_loc, ratio_loc])
+
+            sigma_trial = (sigma_q + d_sigma_q_loc) + (sigma_c + d_sigma_c_loc)
+            p_trial = np.sum(sigma_trial[:3]) / 3.0
+            residual = p_trial - p_target
+
+            if np.abs(residual) <= tolerance:
+                return ratio_loc, d_sigma_q_loc, d_sigma_c_loc, d_epsilon_loc, de_v_p_loc
+
+            fd_step = max(1e-8 * max(1.0, np.abs(delta_eps_r), np.abs(eqp_inc)), small_number)
+            ratio_fd = (delta_eps_r + fd_step) / eqp_inc if np.abs(eqp_inc) > small_number else 0.0
+            d_sigma_q_fd, d_sigma_c_fd, _, _ = compute_stress_increment([ratio_fd, ratio_fd])
+            sigma_trial_fd = (sigma_q + d_sigma_q_fd) + (sigma_c + d_sigma_c_fd)
+            p_trial_fd = np.sum(sigma_trial_fd[:3]) / 3.0
+            dp_deps_r = (p_trial_fd - p_trial) / fd_step
+
+            if np.abs(dp_deps_r) < small_number:
+                dp_deps_r = (
+                    D_q[0, 1] + D_q[0, 2]
+                    + D_q[1, 1] + D_q[1, 2]
+                    + D_q[2, 1] + D_q[2, 2]
+                ) / 3.0
+
+            if np.abs(dp_deps_r) < small_number:
+                raise RuntimeError('Pressure-control Jacobian is singular')
+
+            delta_eps_r = delta_eps_r - residual / dp_deps_r
+
+        raise RuntimeError('Constant-pressure iteration did not converge')
+
+    def solve_ratios_levenberg_marquardt(ratio_1_guess, ratio_2_guess,
+                                          tolerance=1e-6,        # convergence threshold on |residual| = |sum(d_sigma[:3])| [kPa]; stop once mean-stress imbalance is this small
+                                          max_iterations=50,     # cap on outer LM iterations (accept/reject steps) before giving up and returning current best estimate
+                                          lm_lambda_init=1e-2,   # initial damping factor lambda: larger -> more gradient-descent-like (safer, smaller steps); smaller -> more Gauss-Newton-like (faster, riskier steps)
+                                          small_number=1e-14):   # generic near-zero threshold used to guard against division by zero / degenerate Jacobians
+        """
+        Solve for the two ratios (ratio_1, ratio_2) that drive the mean stress increment to zero
+        under acceleration/deceleration (d_eqp_inc != 0) conditions. The two ratios are
+        coupled through the stress increment equations, so we use a damped Gauss-Newton
+        (Levenberg-Marquardt) approach to find a solution that minimizes the residual.
+        
+        Parameters
+        ----------
+        ratio_1_guess : float
+            Initial guess for the first ratio (d_epsilon[1] / d_epsilon[0]).
+        ratio_2_guess : float
+            Initial guess for the second ratio (d_d_epsilon[1] / d_d_epsilon[0]).
+        tolerance : float, optional
+            Convergence threshold on |residual| = |sum(d_sigma[:3])| [kPa]; stop once mean-stress imbalance is this small. Defaults to 1e-6.
+        max_iterations : int, optional
+            Cap on outer LM iterations (accept/reject steps) before giving up and returning current best estimate. Defaults to 50.
+        lm_lambda_init : float, optional
+            Initial damping factor lambda: larger -> more gradient-descent-like (safer, smaller steps); smaller -> more Gauss-Newton-like (faster, riskier steps). Defaults to 1e-2.
+        small_number : float, optional
+            Generic near-zero threshold used to guard against division by zero / degenerate Jacobians. Defaults to 1e-14.
+        
+        Returns
+        -------
+        tuple[float, float]
+            The converged values of (ratio_1, ratio_2).
+        """
+        x = np.array([ratio_1_guess, ratio_2_guess], dtype=float)
+        lm_lambda = lm_lambda_init
+        residual = servo_control(x)
+
+        for _ in range(max_iterations):
+            if np.abs(residual) <= tolerance:
+                break
+
+            # Forward-difference step sizes for the Jacobian: relative step of 1e-6 (times
+            # the current parameter magnitude, floored at 1.0) balances truncation error
+            # (step too large) against floating-point cancellation error (step too small).
+            fd_step_1 = max(1e-6 * max(1.0, np.abs(x[0])), small_number)
+            fd_step_2 = max(1e-6 * max(1.0, np.abs(x[1])), small_number)
+            residual_fd1 = servo_control([x[0] + fd_step_1, x[1]])
+            residual_fd2 = servo_control([x[0], x[1] + fd_step_2])
+            J = np.array([
+                (residual_fd1 - residual) / fd_step_1,
+                (residual_fd2 - residual) / fd_step_2,
+            ])
+
+            J_norm_sq = J.dot(J)
+            if J_norm_sq < small_number:
+                break
+
+            # Damped minimum-norm step: (J^T J + lm_lambda * I) dx = -J^T residual,
+            # solved in closed form for the rank-1 (1 equation, 2 unknowns) case.
+            # Inner loop: up to 10 trust-region-style trials to find a lambda that
+            # actually reduces |residual| before giving up on this outer iteration.
+            for _ in range(10):
+                step = -(residual * J) / (J_norm_sq + lm_lambda)
+                x_trial = x + step
+                residual_trial = servo_control(x_trial)
+                if np.abs(residual_trial) < np.abs(residual):
+                    x = x_trial
+                    residual = residual_trial
+                    # Step accepted: relax damping toward Gauss-Newton (halve lambda),
+                    # but never let it fall below 1e-8 (keeps a minimum regularization).
+                    lm_lambda = max(lm_lambda * 0.5, 1e-8)
+                    break
+                # Step rejected: increase damping 4x (more gradient-descent-like) and retry.
+                lm_lambda *= 4.0
+            else:
+                break
+
+        return x[0], x[1]
 
     # Update stress
-    ratio = - D_q[1, 0] / (D_q[1, 1] + D_q[1, 2])
     if deformation_mode == 'undrained':
-        d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([ratio])
+        d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([-0.5, -0.5])
     elif deformation_mode == 'drained':
-        solution = root(servo_control, ratio)
-        ratio = solution.x
-        d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment(ratio)
-    
+        if d_eqp_inc == 0:
+            # No acceleration: use the pressure-control Newton line-search
+            ratio_1, d_sigma_q, d_sigma_c, d_epsilon, de_v_p = advance_constant_mean_pressure(
+                eqp_inc=eqp_inc,
+                p_target=p0,
+            )
+            ratio_2 = ratio_1
+        else:
+            # With acceleration: solve the coupled ratios via damped Gauss-Newton
+            # (Levenberg-Marquardt), which is stable even when d_eqp_inc is small.
+            ratio_1, ratio_2 = solve_ratios_levenberg_marquardt(ratio_1, ratio_2)
+            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([ratio_1, ratio_2])
+
     sigma_q += d_sigma_q
     sigma_c += d_sigma_c
     sigma = sigma_q + sigma_c
@@ -543,10 +679,10 @@ plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.p
 
 # Ratio between collisional and quasistatic stress vs. Time
 plt.figure(figsize=figsize)
-plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-c', label=r'Pressures ($p^{\mathrm{c}}/p^{\mathrm{q}}$)')
+plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-c', label=r'Pressures ($p^{\mathrm{d}}/p^{\mathrm{q}}$)')
 plt.plot(0 * dt, p_c[1] / p[1], 'c.', ms=10, label='')
 plt.plot(load_length * dt, p_c[-1] / p[-1], 'cx', ms=10, label='')
-plt.plot(np.arange(load_length-1) * dt, q_c[1:] / q[1:], '-.c', label=r'Deviatoric stresses ($q^{\mathrm{c}}/q^{\mathrm{q}}$)')
+plt.plot(np.arange(load_length-1) * dt, q_c[1:] / q[1:], '-.c', label=r'Deviatoric stresses ($q^{\mathrm{d}}/q^{\mathrm{q}}$)')
 plt.plot(0 * dt, q_c[1] / q[1], 'c.', ms=10, label='')
 plt.plot(load_length * dt, q_c[-1] / q[-1], 'cx', ms=10, label='')
 y_offset_p = max(p_c[1:] / p[1:]) * 0.01
@@ -632,7 +768,7 @@ plt.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.pn
 # Bulk Friction vs. Time
 plt.figure(figsize=figsize)
 plt.axhline(1.0, color='red', linestyle='--', label=r'$\mu^{\mathrm{cs}}$')
-plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{c}}$')
+plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{d}}$')
 plt.plot(np.arange(load_length) * dt, q_total / p_total, '-g', label=r"Total friction ($\mu$)")
 plt.plot(np.arange(load_length) * dt, q / p, '-b', label=r"Quasi-static friction ($\mu^{\mathrm{q}}$)")
 plt.plot(0 * dt, q[0] / p[0], 'b.', ms=10, label='')

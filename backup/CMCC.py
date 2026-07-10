@@ -111,6 +111,7 @@ sigma_c = np.array([0, 0, 0, 0.0, 0.0, 0.0])
 epsilon = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
 de_v_c = 0
+de_v_p = 0
 de_q_direction = np.zeros(6)
 void_ratio_total[0] = void_ratio_0
 void_ratio_q[0] = void_ratio_0
@@ -553,10 +554,10 @@ plt.savefig(f"{deformation_mode}_preconsolidate_p_{void_ratio_0:.3f}_{OCR:.3f}.p
 
 # Ratio between collisional and quasistatic stress vs. Time
 plt.figure(figsize=figsize)
-plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-c', label=r'Pressures ($p^{\mathrm{c}}/p^{\mathrm{q}}$)')
+plt.plot(np.arange(load_length-1) * dt, p_c[1:] / p[1:], '-c', label=r'Pressures ($p^{\mathrm{d}}/p^{\mathrm{q}}$)')
 plt.plot(0 * dt, p_c[1] / p[1], 'c.', ms=10, label='')
 plt.plot(load_length * dt, p_c[-1] / p[-1], 'cx', ms=10, label='')
-plt.plot(np.arange(load_length-1) * dt, q_c[1:] / q[1:], '-.c', label=r'Deviatoric stresses ($q^{\mathrm{c}}/q^{\mathrm{q}}$)')
+plt.plot(np.arange(load_length-1) * dt, q_c[1:] / q[1:], '-.c', label=r'Deviatoric stresses ($q^{\mathrm{d}}/q^{\mathrm{q}}$)')
 plt.plot(0 * dt, q_c[1] / q[1], 'c.', ms=10, label='')
 plt.plot(load_length * dt, q_c[-1] / q[-1], 'cx', ms=10, label='')
 y_offset_p = max(p_c[1:] / p[1:]) * 0.01
@@ -642,7 +643,7 @@ plt.savefig(f"{deformation_mode}_p_vs_void_ratio_{void_ratio_0:.3f}_{OCR:.3f}.pn
 # Bulk Friction vs. Time
 plt.figure(figsize=figsize)
 plt.axhline(1.0, color='red', linestyle='--', label=r'$\mu^{\mathrm{cs}}$')
-plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{c}}$')
+plt.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{d}}$')
 plt.plot(np.arange(load_length) * dt, q / p, '-b', label=r"Quasi-static friction ($\mu^{\mathrm{q}}$)")
 plt.plot(np.arange(load_length) * dt, q_total / p_total, '-g', label=r"Total friction ($\mu$)")
 plt.plot(0 * dt, q[0] / p[0], 'b.', ms=10, label='')

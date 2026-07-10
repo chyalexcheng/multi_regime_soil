@@ -1,7 +1,6 @@
 # encoding: utf-8
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import root 
 from matplotlib import rcParams
 import matplotlib.colors as mcolors
 rcParams['mathtext.fontset'] = 'cm'
@@ -53,7 +52,6 @@ def expand_ylim_for_annotations(ax, top_frac=0.10, bottom_frac=0.03):
 
 # Load history
 def plot_load(load_length, dt, eqp_inc_history, label, color_load, points, markers):
-    ax_load.plot([-20, 500], [0, 0], '--k')
     ax_load.plot(np.arange(load_length ) * dt, eqp_inc_history / dt, label=label, color=color_load)
     for i, (p_i, m_i) in enumerate(zip(points, markers)):
         if m_i == '^':
@@ -162,6 +160,7 @@ void_ratio_total_list = []
 p_list = []
 q_list = []
 void_ratio_q_list = []
+pc_history_list = []
 p_c_list = []
 q_c_list = []
 eq_list = []
@@ -242,31 +241,30 @@ for k, accel_time in enumerate(accel_times):
 
     # Initialize the yield surf surface
     yield_surf = (q[0] ** 2 / M ** 2 + p[0] ** 2) - p[0] * pc
+    pc_history[0] = pc
     
     # Loadstep cycle pressure control shear
     for i, eqp_inc in enumerate(eqp_inc_history[:-1]):
         # Acceleration increment
-        d_eqp_inc = eqp_inc - eqp_inc_history[i - 1] if i > 0 else 0
+        d_eqp_inc = eqp_inc_history[i + 1] - eqp_inc if i > 0 else 0
     
         # Stiffness matrix and strain increment vector and derivatives of the yield function
         De = np.zeros([6, 6])
-        # TODO: HC: check if the stiffness matrix for collisional stress increments can be formulated like elasticity
-        D_c = np.zeros([6, 6])
-        De_c = np.zeros([6, 6])
         df_ds = np.zeros([6, 1])
         df_dep = np.zeros([6, 1])
-    
+
         # Calculate the bulk and shear modulus
         K = V * p[i] / kappa  # Bulk Modulus
         G = (3 * K * (1 - 2 * nu)) / (2 * (1 + nu))  # Shear Modulus
-    
+
         # Update pre-consolidation pressure
         if yield_surf == 0:
+            # pc = pc_history[i] * (1.0 + V * de_v_p / (lambda_val - kappa))
             pc = (q[i] ** 2 / M ** 2 + p[i] ** 2) / p[i]
         else:
             pc = pc_0
         pc_history[i + 1] = pc
-    
+
         # Elastic Stiffness and other Matrix
         for m in range(6):
             for n in range(6):
@@ -279,42 +277,55 @@ for k, accel_time in enumerate(accel_times):
                         df_dep[m, 0] = (-p[i]) * pc * (1 + void_ratio_q[i]) / (lambda_val - kappa) * 1
                     if m == n:
                         De[m, n] = K + 4 / 3 * G
-                        De_c[m, n] = K_c
-                        D_c[m, n] = 4 / 3 * G_c
                     elif n <= 2:
-                        De[m, n] = K + 2 / 3 * G
-                        De_c[m, n] = K_c
-                        D_c[m, n] = - 2 / 3 * G_c
+                        De[m, n] = K - 2 / 3 * G
                 if m > 2:
                     df_ds[m, 0] = 0
                     df_dep[m, 0] = 0
                     if m == n:
                         De[m, n] = G
-                        D_c[m, n] = G_c
                     else:
                         De[m, n] = 0
-                        D_c[m, n] = 0
 
-            # If the yield surface is negative, the stiffness matrix is elastic
-            if yield_surf < 0:
-                D_q = De
+        def get_collisional_stiffness(K_c, G_c):
+            D_c = np.zeros([6, 6])
+            De_c = np.zeros([6, 6])
+            for m in range(6):
+                for n in range(6):
+                    if m <= 2:
+                        if m == n:
+                            D_c[m, n] = K_c + 4 / 3 * G_c
+                            De_c[m, n] = K_c
+                        elif n <= 2:
+                            D_c[m, n] = K_c - 2 / 3 * G_c
+                            De_c[m, n] = K_c
+                    if m > 2:
+                        if m == n:
+                            D_c[m, n] = G_c
+                        else:
+                            D_c[m, n] = 0
+            return D_c, De_c
 
-            # If the yield surface is positive, the stiffness matrix is elastic-plastic
-            else:
-                D_q = De - (De.dot(df_ds).dot(df_ds.T).dot(De)) / (
-                        -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds))
+        # If the yield surface is negative, the stiffness matrix is elastic
+        if yield_surf < 0:
+            D_q = De
+
+        # If the yield surface is positive, the stiffness matrix is elastic-plastic
+        else:
+            D_q = De - (De.dot(df_ds).dot(df_ds.T).dot(De)) / (
+                    -(df_dep.T).dot(df_ds) + (df_ds.T).dot(De).dot(df_ds))
 
         def compute_stress_increment(args):
             global K_c, G_c, de_v_c, de_q_direction, d_eqp_inc
-            ratio = args[0]
+            ratio_1, ratio_2 = args
             # Fill the strain increment vector
             if deformation_mode == 'drained':
                 # For drained (or pressure control) conditions
                 d_epsilon = np.array(
-                    [eqp_inc, ratio * eqp_inc, ratio * eqp_inc, 0., 0., 0.])
+                    [eqp_inc, ratio_1 * eqp_inc, ratio_1 * eqp_inc, 0., 0., 0.])
                 if d_eqp_inc != 0:
                     d_d_epsilon = np.array(
-                        [d_eqp_inc, ratio * d_eqp_inc, ratio * d_eqp_inc, 0., 0., 0.])
+                        [d_eqp_inc, ratio_2 * d_eqp_inc, ratio_2 * d_eqp_inc, 0., 0., 0.])
                 else:
                     d_d_epsilon = np.array([0., 0., 0., 0., 0., 0.])
             elif deformation_mode == 'undrained':
@@ -345,6 +356,8 @@ for k, accel_time in enumerate(accel_times):
                 K_c = 0
                 G_c = 0
 
+            # Get collisional stiffness matrices
+            D_c, De_c = get_collisional_stiffness(K_c, G_c)
             # Get collisional stress-induced plastic strain increment
             d_epsilon_v_c = 1./3. * de_v_c * np.array([1., 1., 1., 0, 0, 0])
             
@@ -370,19 +383,114 @@ for k, accel_time in enumerate(accel_times):
 
             return d_sigma_q, d_sigma_c, d_epsilon, de_v_p
     
-        def servo_control(ratio):
-            d_sigma_q, d_sigma_c, _, _ = compute_stress_increment(ratio)
+        def servo_control(ratios):
+            ratio_1, ratio_2 = ratios
+            d_sigma_q, d_sigma_c, _, _ = compute_stress_increment([ratio_1, ratio_2])
             d_sigma = d_sigma_q + d_sigma_c
-            return abs(np.sum(d_sigma[:3]))
+            return np.sum(d_sigma[:3])
+
+        def advance_constant_mean_pressure(eqp_inc, p_target,
+                                            tolerance=1e-3,
+                                            max_iterations=100,
+                                            small_number=1e-14):
+            # No acceleration: ratio_2 has no effect on the result, so keep it equal to ratio_1.
+            denom = D_q[1, 1] + D_q[1, 2]
+            delta_eps_r = - D_q[1, 0] / denom * eqp_inc if np.abs(denom) > small_number else 0.0
+
+            for _ in range(max_iterations):
+                ratio_loc = delta_eps_r / eqp_inc if np.abs(eqp_inc) > small_number else 0.0
+                d_sigma_q_loc, d_sigma_c_loc, d_epsilon_loc, de_v_p_loc = compute_stress_increment([ratio_loc, ratio_loc])
+
+                sigma_trial = (sigma_q + d_sigma_q_loc) + (sigma_c + d_sigma_c_loc)
+                p_trial = np.sum(sigma_trial[:3]) / 3.0
+                residual = p_trial - p_target
+
+                if np.abs(residual) <= tolerance:
+                    return ratio_loc, d_sigma_q_loc, d_sigma_c_loc, d_epsilon_loc, de_v_p_loc
+
+                fd_step = max(1e-8 * max(1.0, np.abs(delta_eps_r), np.abs(eqp_inc)), small_number)
+                ratio_fd = (delta_eps_r + fd_step) / eqp_inc if np.abs(eqp_inc) > small_number else 0.0
+                d_sigma_q_fd, d_sigma_c_fd, _, _ = compute_stress_increment([ratio_fd, ratio_fd])
+                sigma_trial_fd = (sigma_q + d_sigma_q_fd) + (sigma_c + d_sigma_c_fd)
+                p_trial_fd = np.sum(sigma_trial_fd[:3]) / 3.0
+                dp_deps_r = (p_trial_fd - p_trial) / fd_step
+
+                if np.abs(dp_deps_r) < small_number:
+                    dp_deps_r = (
+                        D_q[0, 1] + D_q[0, 2]
+                        + D_q[1, 1] + D_q[1, 2]
+                        + D_q[2, 1] + D_q[2, 2]
+                    ) / 3.0
+
+                if np.abs(dp_deps_r) < small_number:
+                    raise RuntimeError('Pressure-control Jacobian is singular')
+
+                delta_eps_r = delta_eps_r - residual / dp_deps_r
+
+            raise RuntimeError('Constant-pressure iteration did not converge')
+
+        def solve_ratios_levenberg_marquardt(ratio_1_guess, ratio_2_guess,
+                                              tolerance=1e-6,
+                                              max_iterations=50,
+                                              lm_lambda_init=1e-2,
+                                              small_number=1e-14):
+            # With acceleration (d_eqp_inc != 0): both ratio_1 and ratio_2 affect the
+            # residual, but there is still only 1 equation (mean-stress residual) for
+            # 2 unknowns. Use a damped Gauss-Newton (Levenberg-Marquardt) minimum-norm
+            # step, which is stable even when d_eqp_inc is small (unlike dividing by it).
+            x = np.array([ratio_1_guess, ratio_2_guess], dtype=float)
+            lm_lambda = lm_lambda_init
+            residual = servo_control(x)
+
+            for _ in range(max_iterations):
+                if np.abs(residual) <= tolerance:
+                    break
+
+                fd_step_1 = max(1e-6 * max(1.0, np.abs(x[0])), small_number)
+                fd_step_2 = max(1e-6 * max(1.0, np.abs(x[1])), small_number)
+                residual_fd1 = servo_control([x[0] + fd_step_1, x[1]])
+                residual_fd2 = servo_control([x[0], x[1] + fd_step_2])
+                J = np.array([
+                    (residual_fd1 - residual) / fd_step_1,
+                    (residual_fd2 - residual) / fd_step_2,
+                ])
+
+                J_norm_sq = J.dot(J)
+                if J_norm_sq < small_number:
+                    break
+
+                for _ in range(10):
+                    step = -(residual * J) / (J_norm_sq + lm_lambda)
+                    x_trial = x + step
+                    residual_trial = servo_control(x_trial)
+
+                    if np.abs(residual_trial) < np.abs(residual):
+                        x = x_trial
+                        residual = residual_trial
+                        lm_lambda = max(lm_lambda * 0.5, 1e-8)
+                        break
+                    else:
+                        lm_lambda *= 4.0
+                else:
+                    break
+
+            return x[0], x[1]
 
         # Update stress
-        ratio = - D_q[1, 0] / (D_q[1, 1] + D_q[1, 2])
         if deformation_mode == 'undrained':
-            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([ratio])
+            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([-0.5, -0.5])
         elif deformation_mode == 'drained':
-            solution = root(servo_control, ratio)
-            ratio = solution.x
-            d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment(ratio)
+            if d_eqp_inc == 0:
+                # No acceleration: use the pressure-control Newton line-search
+                ratio_1, d_sigma_q, d_sigma_c, d_epsilon, de_v_p = advance_constant_mean_pressure(
+                    eqp_inc=eqp_inc,
+                    p_target=p0,
+                )
+                ratio_2 = ratio_1
+            else:
+                ratio = - D_q[1, 0] / (D_q[1, 1] + D_q[1, 2])
+                ratio_1, ratio_2 = solve_ratios_levenberg_marquardt(ratio, ratio)
+                d_sigma_q, d_sigma_c, d_epsilon, de_v_p = compute_stress_increment([ratio_1, ratio_2])
         
         sigma_q += d_sigma_q
         sigma_c += d_sigma_c
@@ -393,7 +501,8 @@ for k, accel_time in enumerate(accel_times):
         p_total[i + 1] = np.sum(sigma[:3]) / 3.0
         p_s = sigma - np.array([1., 1., 1., 0, 0, 0]) * p_total[i + 1]
         q_total[i + 1] = np.sqrt(3. / 2. * p_s.dot(p_s))
-    
+        pc_history[i + 1] = pc
+
         p_c[i + 1] = np.sum(sigma_c[:3]) / 3.0
         p_s_c = sigma_c - np.array([1., 1., 1., 0, 0, 0]) * p_c[i + 1]
         q_c[i + 1] = np.sqrt(3. / 2. * p_s_c.dot(p_s_c))
@@ -427,8 +536,9 @@ for k, accel_time in enumerate(accel_times):
     p_list.append(p)
     q_list.append(q)
     void_ratio_q_list.append(void_ratio_q)
+    pc_history_list.append(pc_history)
     p_c_list.append(p_c)
-    q_c_list.append(q_c)    
+    q_c_list.append(q_c)
     eq_list.append(eq)
     ev_list.append(ev)
     ev_cp_list.append(ev_cp)
