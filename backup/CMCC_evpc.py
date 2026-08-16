@@ -793,7 +793,7 @@ plt.figure(figsize=figsize)
 plt.plot(np.arange(load_length) * dt, ev, '-', color='gray', label=r"$\varepsilon_v$")
 plt.plot(np.arange(load_length) * dt, ev_e, '-g', label=r"$\varepsilon_v^{\mathrm{e}}$")
 plt.plot(np.arange(load_length) * dt, ev_qp, '-b', label=r"$\varepsilon_v^{\mathrm{p,q}}$")
-plt.plot(np.arange(load_length) * dt, ev_cp, '-m', label=r"$\varepsilon_v^{\mathrm{p,c}}$")
+plt.plot(np.arange(load_length) * dt, ev_cp, '-m', label=r"$\varepsilon_v^{\mathrm{p,d}}$")
 x_offset = load_length * dt * 0.04
 y_offset_qp = max(ev_qp) * 0.01
 y_offset_e = max(ev_e) * 0.01

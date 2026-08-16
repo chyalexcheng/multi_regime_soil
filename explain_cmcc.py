@@ -129,8 +129,8 @@ q_yield = (M**2*(50*p_yield-p_yield**2))**0.5;
 plt.plot(p_yield,q_yield,'k--',label='Initial yield surface')
 plt.plot([50, 50],[0, 50],'b-', label='Stress path')
 plt.annotate('', xy=(50, 50+0.5), xytext=(50, 0),
-             arrowprops=dict(arrowstyle='-|>, head_width=0.4, head_length=0.7', color='b'))
-plt.text(43, 56, r'$(\frac{p_\mathrm{c}}{2},\frac{\mu^\mathrm{cs} p_\mathrm{c}}{2})$', fontsize=16, va='center')
+             arrowprops=dict(arrowstyle='-|>, head_width=0.25, head_length=0.5', color='b'))
+plt.text(39, 60, r'$(\frac{p_\mathrm{c}}{2},\frac{\mu^\mathrm{cs} p_\mathrm{c}}{2})$', fontsize=18, va='center')
 
 plt.xlim(0,110)
 plt.ylim(0)
@@ -149,7 +149,7 @@ a_y = eCSL[50] - kappa * np.log(a_x / pCSL[50])
 plt.semilogx(a_x, a_y, 'g--', label='Swelling line')
 plt.semilogx([pCSL[50], pCSL[50]],[eNCL[50], eCSL[50]],'b-', label='Stress path')
 plt.annotate('', xy=(pCSL[50], eCSL[50]-0.005), xytext=(pCSL[50], eNCL[50]),
-             arrowprops=dict(arrowstyle='-|>, head_width=0.4, head_length=0.7', color='b'))
+             arrowprops=dict(arrowstyle='-|>, head_width=0.25, head_length=0.5', color='b'))
 
 plt.xlabel(r'Pressure $p$ [$p_\mathrm{ref}$]')
 plt.ylabel(r'Void ratio $e=\frac{1}{\phi}-1$')

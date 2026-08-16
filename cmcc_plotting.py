@@ -424,7 +424,7 @@ def _plot_e_components_time(c: dict, output: Path) -> None:
     plt.plot(t, ev, '-', color='gray', label=r"$\varepsilon_v$")
     plt.plot(t, ev_e, '-g', label=r"$\varepsilon_v^{\mathrm{e}}$")
     plt.plot(t, ev_qp, '-b', label=r"$\varepsilon_v^{\mathrm{p,q}}$")
-    plt.plot(t, ev_cp, '-m', label=r"$\varepsilon_v^{\mathrm{p,c}}$")
+    plt.plot(t, ev_cp, '-m', label=r"$\varepsilon_v^{\mathrm{p,d}}$")
 
     x_offset = c["load_length"] * dt * 0.04
     y_offset_qp = max(ev_qp) * 0.01
