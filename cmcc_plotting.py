@@ -1,5 +1,6 @@
+import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Union
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -80,6 +81,315 @@ def _collect_context(data: dict, history: dict) -> dict:
     c["figsize"] = (6, 4.5)
     c["text_box_props"] = dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.5, edgecolor='gray')
     return c
+
+
+def animation_frame_indices(load_length: int, frame_step: int = 100) -> List[int]:
+    """Return regularly spaced animation indices, always including the last step."""
+    if load_length <= 0:
+        raise ValueError("load_length must be positive")
+    if frame_step <= 0:
+        raise ValueError("frame_step must be positive")
+
+    indices = list(range(0, load_length, frame_step))
+    final_index = load_length - 1
+    if indices[-1] != final_index:
+        indices.append(final_index)
+    return indices
+
+
+def make_animation_frame(
+    data: Dict[str, np.ndarray],
+    history: Dict[str, np.ndarray],
+    step: int,
+    output_path: Union[str, Path],
+    dpi: int = 100,
+) -> Path:
+    """Plot the CMCC response through ``step`` as one fixed-size PNG frame.
+
+    The complete histories are drawn in light gray to keep the axes identical
+    between frames. Colored curves show the response reached so far.
+    """
+    required_data = (
+        "p",
+        "q",
+        "p_total",
+        "q_total",
+        "void_ratio_q",
+        "void_ratio_total",
+        "pc_history",
+    )
+    missing = [key for key in required_data if key not in data]
+    if missing:
+        raise KeyError(f"Missing animation data: {', '.join(missing)}")
+
+    load_length = int(history["load_length"])
+    if not 0 <= step < load_length:
+        raise IndexError(f"step must be between 0 and {load_length - 1}, got {step}")
+    if dpi <= 0:
+        raise ValueError("dpi must be positive")
+
+    dt = float(history["dt"])
+    rate = np.asarray(history["eqp_inc_history"]) / dt
+    if len(rate) != load_length:
+        raise ValueError("eqp_inc_history length does not match load_length")
+
+    arrays = {key: np.asarray(data[key]) for key in required_data}
+    mismatched = [key for key, value in arrays.items() if len(value) != load_length]
+    if mismatched:
+        raise ValueError(f"Data length does not match load_length: {', '.join(mismatched)}")
+
+    p = arrays["p"]
+    q = arrays["q"]
+    p_total = arrays["p_total"]
+    q_total = arrays["q_total"]
+    void_ratio_q = arrays["void_ratio_q"]
+    void_ratio_total = arrays["void_ratio_total"]
+    pc_history = arrays["pc_history"]
+    M = float(data["M"])
+    if M <= 0:
+        raise ValueError("M must be positive")
+    mu_q = _safe_ratio(q, p)
+    mu_total = _safe_ratio(q_total, p_total)
+    t = np.arange(load_length) * dt
+    sampled_indices = np.linspace(0, load_length - 1, min(load_length, 2000), dtype=int)
+    extrema_indices = []
+    for values in (
+        rate,
+        p,
+        q,
+        p_total,
+        q_total,
+        void_ratio_q,
+        void_ratio_total,
+        pc_history,
+        mu_q,
+        mu_total,
+    ):
+        finite = np.flatnonzero(np.isfinite(values))
+        if finite.size:
+            extrema_indices.extend((finite[np.argmin(values[finite])], finite[np.argmax(values[finite])]))
+    reference_indices = np.unique(np.append(sampled_indices, extrema_indices))
+    progress_indices = reference_indices[reference_indices <= step]
+    if progress_indices[-1] != step:
+        progress_indices = np.append(progress_indices, step)
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 7.5), constrained_layout=True)
+    ax_rate, ax_mu, ax_pq, ax_ep = axes.flat
+    reference_color = "0.82"
+
+    ax_rate.plot(t[reference_indices], rate[reference_indices], color=reference_color, linewidth=1.0)
+    ax_rate.plot(t[progress_indices], rate[progress_indices], color="black", linewidth=1.5)
+    ax_rate.plot(t[step], rate[step], "ko", ms=5)
+    time_label = r"Time $t$ [s]"
+    ax_rate.set_xlabel(time_label)
+    ax_rate.set_ylabel(r"Shear strain rate $\dot{\gamma}$ [1/s]")
+    ax_rate.set_xlim(t[0], t[-1] if load_length > 1 else t[0] + dt)
+
+    ax_mu.plot(t[reference_indices], mu_total[reference_indices], color=reference_color, linewidth=1.0)
+    ax_mu.plot(t[reference_indices], mu_q[reference_indices], color=reference_color, linewidth=1.0, linestyle="--")
+    ax_mu.axhline(1.0, color='red', linestyle='--', label=r'$\mu^{\mathrm{cs}}$')
+    ax_mu.axhline(1.5, color='red', linestyle=':', label=r'$\mu^{\mathrm{c}}$')
+    ax_mu.plot(t[progress_indices], mu_total[progress_indices], color="green", label="Total")
+    ax_mu.plot(t[progress_indices], mu_q[progress_indices], color="blue", label="Quasi-static")
+    ax_mu.plot(t[step], mu_total[step], "go", ms=5)
+    ax_mu.plot(t[step], mu_q[step], "bo", ms=5)
+    ax_mu.set_xlabel(time_label)
+    ax_mu.set_ylabel(r"Stress ratio $q/p$ [-]")
+    ax_mu.set_xlim(t[0], t[-1] if load_length > 1 else t[0] + dt)
+    ax_mu.legend(loc="best", fontsize="small")
+
+    ax_pq.plot(p_total[reference_indices], q_total[reference_indices], color=reference_color, linewidth=1.0)
+    ax_pq.plot(p[reference_indices], q[reference_indices], color=reference_color, linewidth=1.0, linestyle="--")
+    ax_pq.plot(p_total[progress_indices], q_total[progress_indices], color="green", label="Total")
+    ax_pq.plot(p[progress_indices], q[progress_indices], color="blue", label="Quasi-static")
+    ax_pq.plot(p_total[step], q_total[step], "go", ms=5)
+    ax_pq.plot(p[step], q[step], "bo", ms=5)
+
+    initial_pc = float(data.get("pc_0", float(data.get("OCR", 1.0)) * p[0]))
+    current_pc = float(pc_history[step])
+    if not np.isfinite(current_pc) or current_pc <= 0:
+        current_pc = initial_pc
+    yield_p = np.linspace(0.0, current_pc, 300)
+    yield_q = M * np.sqrt(np.maximum(yield_p * (current_pc - yield_p), 0.0))
+
+    finite_pc = pc_history[np.isfinite(pc_history) & (pc_history > 0)]
+    maximum_pc = max(initial_pc, float(np.max(finite_pc)) if finite_pc.size else initial_pc)
+    pressure_values = np.concatenate((p[np.isfinite(p)], p_total[np.isfinite(p_total)]))
+    stress_values = np.concatenate((q[np.isfinite(q)], q_total[np.isfinite(q_total)]))
+    pressure_min = min(0.0, float(np.min(pressure_values)))
+    pressure_max = max(float(np.max(pressure_values)), maximum_pc)
+    stress_min = min(0.0, float(np.min(stress_values)))
+    stress_max = max(float(np.max(stress_values)), M * maximum_pc / 2.0)
+    pressure_margin = max(0.05 * (pressure_max - pressure_min), 1.0)
+    stress_margin = max(0.05 * (stress_max - stress_min), 1.0)
+
+    csl_p = np.array([0.0, pressure_max + pressure_margin])
+    ax_pq.plot(
+        csl_p,
+        M * csl_p,
+        color='red',
+        linewidth=1.5,
+        label="Critical state line",
+        zorder=0,
+    )
+    ax_pq.plot(
+        yield_p,
+        yield_q,
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label="MCC yield surface",
+        zorder=0,
+    )
+    ax_pq.set_xlabel(r"Pressure $p$ [kPa]")
+    ax_pq.set_ylabel(r"Deviatoric stress $q$ [kPa]")
+    ax_pq.set_xlim(pressure_min - pressure_margin, pressure_max + pressure_margin)
+    ax_pq.set_ylim(stress_min - stress_margin, stress_max + stress_margin)
+    ax_pq.legend(loc="best", fontsize="small")
+
+    ax_ep.plot(p_total[reference_indices], void_ratio_total[reference_indices], color=reference_color, linewidth=1.0)
+    ax_ep.plot(p[reference_indices], void_ratio_q[reference_indices], color=reference_color, linewidth=1.0, linestyle="--")
+    ax_ep.plot(p_total[progress_indices], void_ratio_total[progress_indices], color="green", label="Total")
+    ax_ep.plot(p[progress_indices], void_ratio_q[progress_indices], color="blue", label="Quasi-static")
+    ax_ep.plot(p_total[step], void_ratio_total[step], "go", ms=5)
+    ax_ep.plot(p[step], void_ratio_q[step], "bo", ms=5)
+    data_xlim = ax_ep.get_xlim()
+    data_ylim = ax_ep.get_ylim()
+
+    positive_pressure_min = data_xlim[0]
+    pCSL = np.linspace(positive_pressure_min, data_xlim[1], 300)
+    lambda_val = float(data.get("lambda_val", 0.2))
+    gamma = void_ratio_q[-1] + lambda_val * np.log(p[-1])
+    eCSL = gamma - lambda_val * np.log(pCSL)
+    ax_ep.plot(pCSL, eCSL, color="red", label="Critical state line", zorder=0)
+
+    ax_ep.set_xlabel(r"Pressure $p$ [kPa]")
+    ax_ep.set_ylabel(r"Void ratio $e$ [-]")
+    ax_ep.set_xlim(data_xlim)
+    ax_ep.set_ylim(data_ylim)
+    ax_ep.legend(loc="best", fontsize="small")
+
+    mode = "Pressure-conserved shear" if data.get("deformation_mode") == "drained" else "Volume-conserved shear"
+    ocr = data.get("OCR")
+    ocr_text = f", OCR={float(ocr):g}" if ocr is not None else ""
+    fig.suptitle(f"{mode.capitalize()}{ocr_text} (t={t[step]:.1f} s)")
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=dpi)
+    plt.close(fig)
+    return output
+
+
+def make_animation_frames(
+    data: Dict[str, np.ndarray],
+    history: Dict[str, np.ndarray],
+    output_dir: Union[str, Path],
+    frame_step: int = 100,
+    dpi: int = 100,
+    progress: Optional[Callable[[int, int, Path], None]] = None,
+) -> List[Path]:
+    """Render numbered PNG frames at every ``frame_step`` simulation steps."""
+    indices = animation_frame_indices(int(history["load_length"]), frame_step)
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    width = max(6, len(str(int(history["load_length"]) - 1)))
+
+    frames = []
+    for frame_number, step in enumerate(indices, start=1):
+        frame_path = output / f"frame_{step:0{width}d}.png"
+        frames.append(make_animation_frame(data, history, step, frame_path, dpi=dpi))
+        if progress is not None:
+            progress(frame_number, len(indices), frame_path)
+    return frames
+
+
+def _natural_path_key(path: Path) -> List[Union[int, str]]:
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.name)]
+
+
+def find_png_frames(directory: Union[str, Path], pattern: str = "*.png") -> List[Path]:
+    """Find PNG files in natural filename order (frame_2 before frame_10)."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise NotADirectoryError(f"PNG frame directory does not exist: {directory}")
+    frames = sorted(directory.glob(pattern), key=_natural_path_key)
+    if not frames:
+        raise ValueError(f"No PNG files matching {pattern!r} in {directory}")
+    return frames
+
+
+def create_gif_from_pngs(
+    png_files: Union[str, Path, Sequence[Union[str, Path]], Iterable[Union[str, Path]]],
+    output_path: Union[str, Path],
+    duration_ms: int = 100,
+    loop: int = 0,
+    pattern: str = "*.png",
+) -> Path:
+    """Compile PNG files into a GIF, padding mixed image sizes with white.
+
+    ``png_files`` may be a directory or an iterable of explicit paths. A
+    directory is searched non-recursively using ``pattern``.
+    """
+    if duration_ms <= 0:
+        raise ValueError("duration_ms must be positive")
+    if loop < 0:
+        raise ValueError("loop must be non-negative")
+
+    if isinstance(png_files, (str, Path)):
+        source = Path(png_files)
+        paths = find_png_frames(source, pattern) if source.is_dir() else [source]
+    else:
+        paths = [Path(path) for path in png_files]
+    if not paths:
+        raise ValueError("At least one PNG frame is required")
+    missing = [str(path) for path in paths if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"PNG frame does not exist: {missing[0]}")
+
+    try:
+        from PIL import Image
+    except ImportError as exc:  # pragma: no cover - matplotlib normally installs Pillow
+        raise ImportError("Pillow is required to create GIF files") from exc
+
+    sizes = []
+    for path in paths:
+        with Image.open(path) as image:
+            sizes.append(image.size)
+    canvas_size = (max(size[0] for size in sizes), max(size[1] for size in sizes))
+
+    def load_gif_frame(path: Path):
+        with Image.open(path) as image:
+            rgba = image.convert("RGBA")
+            canvas = Image.new("RGBA", canvas_size, "white")
+            offset = ((canvas_size[0] - rgba.width) // 2, (canvas_size[1] - rgba.height) // 2)
+            canvas.alpha_composite(rgba, offset)
+            adaptive = getattr(Image, "Palette", Image).ADAPTIVE
+            return canvas.convert("RGB").convert("P", palette=adaptive)
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    from PIL import GifImagePlugin
+
+    # Write one frame at a time. Pillow's high-level save_all API retains every
+    # image in memory, which is impractical for long CMCC simulations.
+    with output.open("wb") as gif_file:
+        for frame_number, path in enumerate(paths):
+            frame = load_gif_frame(path)
+            try:
+                if frame_number == 0:
+                    header, _ = GifImagePlugin.getheader(frame, info={"loop": loop})
+                    for block in header:
+                        gif_file.write(block)
+                params = {"duration": duration_ms, "disposal": 2}
+                if frame_number > 0:
+                    params["include_color_table"] = True
+                for block in GifImagePlugin.getdata(frame, **params):
+                    gif_file.write(block)
+            finally:
+                frame.close()
+        gif_file.write(b";")
+    return output
 
 
 def _plot_load_history(c: dict, output: Path) -> None:
@@ -774,4 +1084,3 @@ def make_diff_rates_comparison_plots(
     fig_mu.savefig(output / f"{mode}_gamma_vs_mu_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
     fig_void.savefig(output / f"{mode}_gamma_vs_phi_{void_ratio_0:.3f}_{OCR:.3f}_diff_rate.png", dpi=300, bbox_inches="tight")
     plt.close('all')
-
