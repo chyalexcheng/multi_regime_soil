@@ -1,7 +1,7 @@
 # Collision-driven Modified Cam-Clay Model for Transient Granular Flows
 
-This folder contains a modular re-implementation of the Modified Cam-Clay (MCC)
-+ dynamic stress constitutive model used to simulate triaxial shear tests.
+This repository contains a modular implementation of the Collision-driven Modified Cam-Clay (MCC) model for transient granular flows, including (1) an elastoplastic tangent tensor for the rate-independent quasi-static stresses and (2) a hardening modulus and a shear viscosity for the rate-dependent dynamic stresses. The model is based on the work of [Cheng and Luding (2026)](https://doi.org/10.1039/d5sm01255d), and is implemented in Python 3 with NumPy, SciPy, and Matplotlib.
+
 Core physics lives in `mcc_core.py`, the servo-controlled solver lives in
 `triax_solve.py`, and plotting helpers live in `mcc_plotting.py`. Three driver
 scripts are provided for the three main use cases described below.
@@ -23,6 +23,12 @@ Arguments:
   (over-consolidated)
 
 Outputs are saved to the current directory (`.`) by default.
+
+### Example animations
+
+| Drained (pressure-conserved) | Undrained (volume-conserved) |
+|:---:|:---:|
+| ![Drained CMCC transient triaxial shear](drained_data_0.498_1.000.gif) | ![Undrained CMCC transient triaxial shear](undrained_data_0.498_1.000.gif) |
 
 ## 2. Multi-rate triaxial shear study (`cmcc_diff_rates_driver.py`)
 
@@ -70,3 +76,6 @@ The script is interactive and will prompt for:
 Produces plots of $\mu$ vs. $I$, $\phi$ vs. $I$, void ratio vs. shear rate,
 and dynamic-stress-rate comparisons, saved as PNG files in the current
 directory.
+
+## References
+- Cheng, H., & Luding, S. (2026). A unified constitutive framework for transient granular rheology through shear rate-induced dilatancy . *Soft Matter*. https://doi.org/10.1039/d5sm01255d
